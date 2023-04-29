@@ -1,7 +1,11 @@
+local M = {}
+
 local jelly = require("infra.jellyfish")("parrot", vim.log.levels.DEBUG)
 
 local parser = require("parrot.parser")
 local fn = require("infra.fn")
+local ex = require("infra.ex")
+local nvimkeys = require("infra.nvimkeys")
 
 local api = vim.api
 
@@ -22,14 +26,14 @@ local function load_chirps(filetype)
   return state.chirps[filetype]
 end
 
-return function()
+function M.setup()
   if state.ran then return end
   state.ran = true
 
   vim.keymap.set("i", "<c-space>", function()
-    local bufnr, row, col
+    local win_id, bufnr, row, col
     do
-      local win_id = api.nvim_get_current_win()
+      win_id = api.nvim_get_current_win()
       bufnr = api.nvim_get_current_buf()
       row, col = unpack(api.nvim_win_get_cursor(win_id))
     end
@@ -47,12 +51,25 @@ return function()
       local indent = string.match(line, "^%s+") or ""
       if chirps[key] == nil then return jelly.debug("no available snippet for %s", key) end
       inserts = fn.concrete(fn.map(function(el) return indent .. el end, chirps[key]))
-      inserts[1] = string.sub(inserts[1], #indent)
+      inserts[1] = string.sub(inserts[1], #indent + 1)
     end
 
-    jelly.debug("(%d, %d), (%d, %d)", row - 1, col - #key, row - 1, col)
     api.nvim_buf_set_text(bufnr, row - 1, col - #key, row - 1, col, inserts)
 
-    -- todo: regional search: `/\v(\$\d+)|(\$\{\d+:[^}]+\})`
+    -- select expanded region and search the placeholders
+    do
+      local after_cursor = api.nvim_win_get_cursor(win_id)
+      after_cursor[2] = after_cursor[2] + 1
+      vim.cmd.stopinsert()
+      api.nvim_win_set_cursor(win_id, { row, col - #key })
+      ex("normal! v")
+      api.nvim_win_set_cursor(win_id, after_cursor)
+      vim.fn.setreg("/", [[/\%V\v(\$\d+)|(\$\{\d+(:[^}]+)?\})]])
+      api.nvim_feedkeys(nvimkeys("<esc>/<cr>"), "n", false)
+    end
+
+    -- todo: imap tab -> next match & select-mode
   end)
 end
+
+return M
