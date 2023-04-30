@@ -74,9 +74,10 @@ function M.setup()
       vim.fn.setreg("/", [[/\%V\v(\$\d+)|(\$\{\d+(:[^}]+)?\})]])
       api.nvim_feedkeys(nvimkeys("<esc>/<cr>"), "n", false)
     end
-
-    -- todo: imap tab -> next match & select-mode
   end)
+
+  -- todo: respect the state
+  vim.keymap.set({ 'n', "i", "x", "v" }, "<tab>", function() api.nvim_feedkeys(nvimkeys("<esc>ngn<c-g>"), "n", false) end)
 end
 
 return M
