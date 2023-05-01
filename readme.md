@@ -12,7 +12,7 @@ poor mans's snippet expanding tool
 * haolian9/infra.nvim
 
 ## status
-* just works
+* not usable
 
 ## usage
 * `require'parrot'.setup()`
