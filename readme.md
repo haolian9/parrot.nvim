@@ -1,20 +1,20 @@
 poor mans's snippet expanding tool
 
 ## features/limits
-* it's very opinionated, personalized, not for the public
-* the syntax of `.snippets` is a **subset** of UltiSnips's
+* it's very opinionated, not ready for public use at the moment
+* ultisnips-compatible snippet syntax
 * no sh, python interpolation
 * keymaps are not changeable
-* polluting on the register `/`
 
 ## prerequisites
 * nvim 0.9.*
 * haolian9/infra.nvim
 
 ## status
-* not usable
+* just works (tm)
 
 ## usage
 * `require'parrot'.setup()`
-* `i <c-space>`: expanding
-* `i,n,x,v <tab>`: goto next placeholder
+* `i <c-.>`: expand snippet
+* `n,x,v <tab>`: goto next socket
+* add snippets in `${rtp}/chirps/${ft}.snippets`
