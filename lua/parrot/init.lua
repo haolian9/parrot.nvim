@@ -4,6 +4,8 @@ local jelly = require("infra.jellyfish")("parrot", vim.log.levels.DEBUG)
 
 local fn = require("infra.fn")
 local nvimkeys = require("infra.nvimkeys")
+local ex = require("infra.ex")
+local prefer = require("infra.prefer")
 
 local parser = require("parrot.parser")
 local Watcher = require("parrot.RegionWatcher")
@@ -12,7 +14,9 @@ local sockets = require("parrot.sockets")
 local api = vim.api
 
 local state = {
+  ---@type {[string]: {[string]: string[]}} @{filetype: {prefix: [chirp]}}
   chirps = {},
+  ---@type RegionWatcher
   watcher = nil,
 }
 
@@ -32,9 +36,21 @@ local function load_chirps(filetype)
   return state.chirps[filetype]
 end
 
---assume nvim is in insert mode
---only one watcher exists at the same time
-local function expand_snippet()
+local function ensure_modes(...)
+  local held = api.nvim_get_mode().mode
+  for i = 1, select("#", ...) do
+    if held == select(i, ...) then return end
+  end
+  error("unreachable: unexpected mode")
+end
+
+--starts with insert-mode, stops with normal-mode
+--returns true when it has made an expand
+---@return true?
+function M.expand()
+  ensure_modes("i")
+
+  --only one watcher exists at the same time
   if state.watcher then
     jelly.debug("cancelling a watcher, for new watcher")
     state.watcher.cancel()
@@ -43,9 +59,9 @@ local function expand_snippet()
 
   local bufnr, cursor
   do
-    local win_id = api.nvim_get_current_win()
-    bufnr = api.nvim_win_get_buf(win_id)
-    local tuple = api.nvim_win_get_cursor(win_id)
+    local winid = api.nvim_get_current_win()
+    bufnr = api.nvim_win_get_buf(winid)
+    local tuple = api.nvim_win_get_cursor(winid)
     cursor = { row = tuple[1], col = tuple[2] }
   end
 
@@ -59,7 +75,7 @@ local function expand_snippet()
   do
     local chirps
     do
-      local chirps_map = load_chirps(vim.bo[bufnr].filetype)
+      local chirps_map = load_chirps(prefer.bo(bufnr, "filetype"))
       chirps = chirps_map[key]
       if chirps == nil then return jelly.debug("no available snippet for %s", key) end
     end
@@ -67,7 +83,7 @@ local function expand_snippet()
     local inserts = {}
     do
       local indent = string.match(curline, "^%s+") or ""
-      for idx, line in pairs(chirps) do
+      for idx, line in ipairs(chirps) do
         if idx == 1 then
           table.insert(inserts, string.sub(curline, 1, -#key - 1) .. chirps[1])
         else
@@ -78,12 +94,12 @@ local function expand_snippet()
 
     api.nvim_buf_set_lines(bufnr, cursor.row - 1, cursor.row, true, inserts)
     state.watcher = Watcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts)
-    vim.cmd.stopinsert()
+    ex("stopinsert")
+    return true
   end
 end
 
---assume nvim is in {n,v,x} mode
-local function goto_next_socket()
+function M.goto_next()
   if state.watcher == nil then return jelly.debug("no active watcher") end
 
   local watch_start_line, watch_stop_line = state.watcher.range()
@@ -92,29 +108,42 @@ local function goto_next_socket()
     return jelly.debug("the watcher stopped itself")
   end
 
-  local win_id = api.nvim_get_current_win()
-  if api.nvim_win_get_buf(win_id) ~= state.watcher.bufnr then return jelly.debug("not the same buffer") end
+  local winid = api.nvim_get_current_win()
+  if api.nvim_win_get_buf(winid) ~= state.watcher.bufnr then return jelly.debug("not the same buffer") end
+
+  api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
+  assert(api.nvim_get_mode().mode == "n")
 
   do
     jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
-    local next_line, next_col_start, next_col_stop = sockets.next(win_id, watch_start_line, watch_stop_line)
+    local next_line, next_col_start, next_col_stop = sockets.next(winid, watch_start_line, watch_stop_line)
     if next_line == nil then
       jelly.debug("cancelling a watcher, due to no more matches")
       state.watcher.cancel()
       state.watcher = nil
       return
     end
-    api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
-    api.nvim_win_set_cursor(win_id, { next_line + 1, next_col_start })
+    api.nvim_win_set_cursor(winid, { next_line + 1, next_col_start })
     api.nvim_feedkeys("v", "nx", false)
-    api.nvim_win_set_cursor(win_id, { next_line + 1, next_col_stop - 1 })
-    api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
+    api.nvim_win_set_cursor(winid, { next_line + 1, next_col_stop - 1 })
+    -- i just found select mode is not that convenient
+    -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
+    return true
   end
 end
 
-function M.setup()
-  vim.keymap.set("i", "<c-.>", expand_snippet)
-  vim.keymap.set({ "n", "v", "x" }, "<tab>", goto_next_socket)
+function M.running() return state.watcher ~= nil end
+
+--for debugging ATM
+function M.cancel()
+  if state.watcher == nil then return end
+  state.watcher.cancel()
+  state.watcher = nil
+end
+
+function M.reset_chirps(filetype)
+  if state.chirps[filetype] == nil then return end
+  state.chirps[filetype] = nil
 end
 
 return M

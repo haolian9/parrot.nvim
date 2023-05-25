@@ -18,16 +18,16 @@ local function first_match_in_lines(bufnr, start_line, stop_line)
   end
 end
 
----@param win_id number
+---@param winid number
 ---@param start_line number inclusive
 ---@param stop_line number exclusive
 ---@return number?,number?,number? @0-indexed lnum, col_start, col_stop
-function M.next(win_id, start_line, stop_line)
-  local bufnr = api.nvim_win_get_buf(win_id)
+function M.next(winid, start_line, stop_line)
+  local bufnr = api.nvim_win_get_buf(winid)
 
   local cursor_line, cursor_col
   do
-    local row, col = unpack(api.nvim_win_get_cursor(win_id))
+    local row, col = unpack(api.nvim_win_get_cursor(winid))
     cursor_line = row - 1
     cursor_col = col
   end

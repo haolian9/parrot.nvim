@@ -68,9 +68,15 @@ do
   end
 end
 
+---@class RegionWatcher
+---@field bufnr number
+---@field cancel fun()
+---@field range fun():number,number
+
 ---@param bufnr number
 ---@param start_line number 0-based, inclusive
 ---@param stop_line number 0-based, exclusive
+---@return RegionWatcher
 return function(bufnr, start_line, stop_line)
   do
     vim.validate({ bufnr = { bufnr, "number" }, start_line = { start_line, "number" }, stop_line = { stop_line, "number" } })
