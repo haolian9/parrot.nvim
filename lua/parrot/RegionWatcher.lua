@@ -68,15 +68,124 @@ do
   end
 end
 
----@class RegionWatcher
+---@class parrot.RegionWatcher.State
 ---@field bufnr number
----@field cancel fun()
----@field range fun():number,number
+---@field cancelled boolean @true when canceled by user
+---@field watching boolean @watcher is working or not
+--
+--watching range will be changed dynamically
+--inclusive start_line, exclusive stop_line
+---@field range? {start_line: number?, stop_line: number?}
+
+---@class parrot.RegionWatcher
+---@field private state parrot.RegionWatcher.State
+local RegionWatcher = {}
+do
+  RegionWatcher.__index = RegionWatcher
+
+  --used by on_lines() only
+  ---@private
+  ---@return true
+  function RegionWatcher:stop_watching()
+    jelly.debug("watcher detaching")
+    self.state.watching = false
+    self.state.range = nil
+    return true
+  end
+
+  ---@private
+  ---@param ... any @arguments of nvim_buf_attach.on_lines()
+  ---@return true?
+  function RegionWatcher:on_lines(...)
+    local state = self.state
+
+    assert(state.watching)
+    if state.cancelled then return self:stop_watching() end
+
+    local interpret = BufLineEventInterpreter.new(...)
+    local _, _, _, orig_first, orig_last, now_last = ...
+    assert(state.range ~= nil)
+
+    if interpret.op == "add" then
+      -- 已知条件：
+      -- * orig与now区间的start不变
+      -- * 只需考虑orig_first与watching.range的关系
+
+      if orig_first >= state.range.stop_line then
+      -- below, no overlap
+      -- no-op
+      elseif orig_first < state.range.start_line then
+        -- above watch, no overlap
+        state.range.start_line = state.range.start_line + interpret.affected_lines
+        state.range.stop_line = state.range.stop_line + interpret.affected_lines
+      else
+        -- within watch
+        -- watch.start needs no change
+        state.range.stop_line = state.range.stop_line + interpret.affected_lines
+      end
+    elseif interpret.op == "del" then
+      -- 已知条件：
+      -- * orig与now区间的start不变
+      -- * 如果有orig与watch交集，则watch必shrink
+
+      if orig_first >= state.range.stop_line then
+      -- below watch, no overlap
+      elseif orig_last < state.range.start_line then
+        -- above watch, no overlap
+        state.range.start_line = state.range.start_line - interpret.affected_lines
+        state.range.stop_line = state.range.stop_line - interpret.affected_lines
+      elseif orig_first == state.range.start_line and orig_last == state.range.stop_line then
+        -- equal watch
+        if orig_first == now_last then
+          -- all line are deleted, stop watching
+          return self:stop_watching()
+        else
+          state.range.start_line = state.range.start_line - interpret.affected_lines
+        end
+      elseif orig_first <= state.range.start_line then
+        -- within watch
+        -- -- all lines in range are deleted
+        if now_last <= state.range.start_line then return self:stop_watching() end
+        if orig_last > state.range.stop_line then
+          state.range.stop_line = now_last
+        else
+          state.range.stop_line = state.range.stop_line - interpret.affected_lines
+        end
+      else
+        -- above-half watch, overlap
+        if orig_last > state.range.stop_line then
+          state.range.stop_line = now_last
+        else
+          state.range.stop_line = state.range.stop_line - interpret.affected_lines
+        end
+      end
+    else
+      -- no-op
+      assert(interpret.op == "nochange")
+    end
+    assert(state.range.start_line >= 0, state.range.start_line)
+    assert(state.range.stop_line >= 0, state.range.stop_line)
+  end
+
+  function RegionWatcher:bufnr() return self.state.bufnr end
+
+  function RegionWatcher:cancel()
+    assert(not self.state.cancelled, "re-cancelling")
+    if not self.state.watching then return end
+    self.state.cancelled = true
+  end
+
+  ---@return number?,number?
+  function RegionWatcher:range()
+    local range = self.state.range
+    if range then return range.start_line, range.stop_line end
+  end
+end
 
 ---@param bufnr number
 ---@param start_line number 0-based, inclusive
 ---@param stop_line number 0-based, exclusive
----@return RegionWatcher
+---@return parrot.RegionWatcher
 return function(bufnr, start_line, stop_line)
   do
     vim.validate({ bufnr = { bufnr, "number" }, start_line = { start_line, "number" }, stop_line = { stop_line, "number" } })
@@ -85,99 +194,12 @@ return function(bufnr, start_line, stop_line)
 
   jelly.debug("start watching buf=%d [%d, %d)", bufnr, start_line, stop_line)
 
-  local state = {
-    --canceled by user
-    cancel = false,
-    --Watcher is working or not
-    watching = nil,
-    --watched range will be dynamically changed
-    --[start, stop)
-    range = { start_line, stop_line },
-  }
+  local watcher = setmetatable({
+    state = { bufnr = bufnr, cancelled = false, watching = true, range = { start_line = start_line, stop_line = stop_line } },
+  }, RegionWatcher)
 
-  ---@return true
-  local function stop_watching()
-    jelly.debug("watcher detaching")
-    state.watching = false
-    state.range = nil
-    return true
-  end
+  ---@diagnostic disable-next-line: invisible
+  api.nvim_buf_attach(bufnr, false, { on_lines = function(...) return watcher:on_lines(...) end })
 
-  state.watching = true
-  api.nvim_buf_attach(bufnr, false, {
-    on_lines = function(...)
-      assert(state.watching)
-      if state.cancel then return stop_watching() end
-
-      local interpret = BufLineEventInterpreter.new(...)
-      local _, _, _, orig_first, orig_last, now_last = ...
-      assert(state.range ~= nil)
-
-      if interpret.op == "add" then
-        -- 已知条件：
-        -- * orig与now区间的start不变
-        -- * 只需考虑orig_first与watching.range的关系
-
-        if orig_first >= state.range[2] then
-        -- below, no overlap
-        -- no-op
-        elseif orig_first < state.range[1] then
-          -- above watch, no overlap
-          state.range[1] = state.range[1] + interpret.affected_lines
-          state.range[2] = state.range[2] + interpret.affected_lines
-        else
-          -- within watch
-          -- watch.start needs no change
-          state.range[2] = state.range[2] + interpret.affected_lines
-        end
-      elseif interpret.op == "del" then
-        -- 已知条件：
-        -- * orig与now区间的start不变
-        -- * 如果有orig与watch交集，则watch必shrink
-
-        if orig_first >= state.range[2] then
-        -- below watch, no overlap
-        elseif orig_last < state.range[1] then
-          -- above watch, no overlap
-          state.range[1] = state.range[1] - interpret.affected_lines
-          state.range[2] = state.range[2] - interpret.affected_lines
-        elseif orig_first == state.range[1] and orig_last == state.range[2] then
-          -- equal watch
-          if orig_first == now_last then
-            -- all line are deleted, stop watching
-            return stop_watching()
-          else
-            state.range[1] = state.range[1] - interpret.affected_lines
-          end
-        elseif orig_first <= state.range[1] then
-          -- within watch
-          -- -- all lines in range are deleted
-          if now_last <= state.range[1] then return stop_watching() end
-          if orig_last > state.range[2] then
-            state.range[2] = now_last
-          else
-            state.range[2] = state.range[2] - interpret.affected_lines
-          end
-        else
-          -- above-half watch, overlap
-          if orig_last > state.range[2] then
-            state.range[2] = now_last
-          else
-            state.range[2] = state.range[2] - interpret.affected_lines
-          end
-        end
-      else
-        -- no-op
-        assert(interpret.op == "nochange")
-      end
-      assert(state.range[1] >= 0, state.range[1])
-      assert(state.range[2] >= 0, state.range[2])
-    end,
-  })
-
-  return {
-    bufnr = bufnr,
-    cancel = function() state.cancel = true end,
-    range = function() return unpack(state.range or {}) end,
-  }
+  return watcher
 end

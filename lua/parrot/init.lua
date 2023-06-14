@@ -6,9 +6,11 @@ local fn = require("infra.fn")
 local nvimkeys = require("infra.nvimkeys")
 local ex = require("infra.ex")
 local prefer = require("infra.prefer")
+local jumplist = require("infra.jumplist")
+local vsel = require("infra.vsel")
 
 local parser = require("parrot.parser")
-local Watcher = require("parrot.RegionWatcher")
+local RegionWatcher = require("parrot.RegionWatcher")
 local sockets = require("parrot.sockets")
 
 local api = vim.api
@@ -16,7 +18,7 @@ local api = vim.api
 local state = {
   ---@type {[string]: {[string]: string[]}} @{filetype: {prefix: [chirp]}}
   chirps = {},
-  ---@type RegionWatcher
+  ---@type parrot.RegionWatcher?
   watcher = nil,
 }
 
@@ -53,7 +55,7 @@ function M.expand()
   --only one watcher exists at the same time
   if state.watcher then
     jelly.debug("cancelling a watcher, for new watcher")
-    state.watcher.cancel()
+    state.watcher:cancel()
     state.watcher = nil
   end
 
@@ -92,8 +94,10 @@ function M.expand()
       end
     end
 
+    jumplist.push_here()
+
     api.nvim_buf_set_lines(bufnr, cursor.row - 1, cursor.row, true, inserts)
-    state.watcher = Watcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts)
+    state.watcher = RegionWatcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts)
     ex("stopinsert")
     return true
   end
@@ -102,30 +106,30 @@ end
 function M.goto_next()
   if state.watcher == nil then return jelly.debug("no active watcher") end
 
-  local watch_start_line, watch_stop_line = state.watcher.range()
-  if watch_start_line == nil then
+  local watch_start_line, watch_stop_line = state.watcher:range()
+  if not (watch_start_line and watch_stop_line) then
     state.watcher = nil
     return jelly.debug("the watcher stopped itself")
   end
 
   local winid = api.nvim_get_current_win()
-  if api.nvim_win_get_buf(winid) ~= state.watcher.bufnr then return jelly.debug("not the same buffer") end
-
-  api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
-  assert(api.nvim_get_mode().mode == "n")
+  if api.nvim_win_get_buf(winid) ~= state.watcher:bufnr() then return jelly.debug("not the same buffer") end
 
   do
     jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
     local next_line, next_col_start, next_col_stop = sockets.next(winid, watch_start_line, watch_stop_line)
-    if next_line == nil then
+    if not (next_line and next_col_start and next_col_stop) then
       jelly.debug("cancelling a watcher, due to no more matches")
-      state.watcher.cancel()
+      state.watcher:cancel()
       state.watcher = nil
       return
     end
-    api.nvim_win_set_cursor(winid, { next_line + 1, next_col_start })
-    api.nvim_feedkeys("v", "nx", false)
-    api.nvim_win_set_cursor(winid, { next_line + 1, next_col_stop - 1 })
+
+    api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
+    assert(api.nvim_get_mode().mode == "n")
+
+    jumplist.push_here()
+    vsel.select_region(next_line, next_col_start, next_line + 1, next_col_stop)
     -- i just found select mode is not that convenient
     -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
     return true
@@ -137,7 +141,7 @@ function M.running() return state.watcher ~= nil end
 --for debugging ATM
 function M.cancel()
   if state.watcher == nil then return end
-  state.watcher.cancel()
+  state.watcher:cancel()
   state.watcher = nil
 end
 
