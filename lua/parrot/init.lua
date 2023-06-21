@@ -25,7 +25,6 @@ local state = {
 ---@param filetype string
 ---@return {[string]: string[]}
 local function load_chirps(filetype)
-  -- todo: reload
   -- todo: snippets for all filetypes
   if state.chirps[filetype] == nil then
     local fpaths = fn.iter_chained(fn.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, filetype), true) end, {
