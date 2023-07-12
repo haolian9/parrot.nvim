@@ -1,12 +1,11 @@
 local M = {}
 
-local jelly = require("infra.jellyfish")("parrot", vim.log.levels.DEBUG)
-
-local fn = require("infra.fn")
-local nvimkeys = require("infra.nvimkeys")
 local ex = require("infra.ex")
-local prefer = require("infra.prefer")
+local fn = require("infra.fn")
+local jelly = require("infra.jellyfish")("parrot", "debug")
 local jumplist = require("infra.jumplist")
+local nvimkeys = require("infra.nvimkeys")
+local prefer = require("infra.prefer")
 local vsel = require("infra.vsel")
 
 local parser = require("parrot.parser")
@@ -17,24 +16,30 @@ local api = vim.api
 
 local state = {
   ---@type {[string]: {[string]: string[]}} @{filetype: {prefix: [chirp]}}
-  chirps = {},
+  cache = {},
   ---@type parrot.RegionWatcher?
   watcher = nil,
 }
 
----@param filetype string
----@return {[string]: string[]}
-local function load_chirps(filetype)
-  -- todo: snippets for all filetypes
-  if state.chirps[filetype] == nil then
-    local fpaths = fn.iter_chained(fn.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, filetype), true) end, {
+local get_chirps
+do
+  ---@param filetype string
+  local function resolve_fpaths(filetype)
+    return fn.iter_chained(fn.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, filetype), true) end, {
       "chirps/%s.snippets",
-      "chirps/%s_*.snippets",
       "chirps/%s-*.snippets",
     }))
-    state.chirps[filetype] = parser(fpaths)
   end
-  return state.chirps[filetype]
+
+  ---@param filetype string
+  local function filetype_chirps(filetype)
+    if state.cache[filetype] == nil then state.cache[filetype] = parser(resolve_fpaths(filetype)) end
+    return state.cache[filetype]
+  end
+
+  ---@param filetype string
+  ---@return string[]
+  function get_chirps(filetype, key) return filetype_chirps(filetype)[key] or filetype_chirps("all")[key] end
 end
 
 local function ensure_modes(...)
@@ -74,12 +79,8 @@ function M.expand()
 
   -- expand snippet
   do
-    local chirps
-    do
-      local chirps_map = load_chirps(prefer.bo(bufnr, "filetype"))
-      chirps = chirps_map[key]
-      if chirps == nil then return jelly.debug("no available snippet for %s", key) end
-    end
+    local chirps = get_chirps(prefer.bo(bufnr, "filetype"), key)
+    if chirps == nil then return jelly.debug("no available snippet for %s", key) end
 
     local inserts = {}
     do
@@ -145,8 +146,8 @@ function M.cancel()
 end
 
 function M.reset_chirps(filetype)
-  if state.chirps[filetype] == nil then return end
-  state.chirps[filetype] = nil
+  if state.cache[filetype] == nil then return end
+  state.cache[filetype] = nil
 end
 
 return M

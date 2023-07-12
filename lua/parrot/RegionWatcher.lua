@@ -1,6 +1,7 @@
-local api = vim.api
 local fn = require("infra.fn")
-local jelly = require("infra.jellyfish")("parrot.regionwatcher", vim.log.levels.DEBUG)
+local jelly = require("infra.jellyfish")("parrot.regionwatcher", "debug")
+
+local api = vim.api
 
 ---@class BufLineEventMaster
 ---@field private orig_first number

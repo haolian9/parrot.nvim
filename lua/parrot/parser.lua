@@ -5,7 +5,7 @@
 -- * `^\s*$`          blank line
 
 local fn = require("infra.fn")
-local jelly = require("infra.jellyfish")("parrot.parser", vim.log.levels.INFO)
+local jelly = require("infra.jellyfish")("parrot.parser", "info")
 
 local function startswith(str, mark) return string.sub(str, 1, #mark) == mark end
 
