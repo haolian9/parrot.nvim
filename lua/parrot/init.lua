@@ -2,7 +2,7 @@ local M = {}
 
 local ex = require("infra.ex")
 local fn = require("infra.fn")
-local jelly = require("infra.jellyfish")("parrot", "debug")
+local jelly = require("infra.jellyfish")("parrot")
 local jumplist = require("infra.jumplist")
 local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")

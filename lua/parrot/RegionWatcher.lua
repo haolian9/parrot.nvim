@@ -1,5 +1,5 @@
 local fn = require("infra.fn")
-local jelly = require("infra.jellyfish")("parrot.regionwatcher", "debug")
+local jelly = require("infra.jellyfish")("parrot.regionwatcher")
 
 local api = vim.api
 

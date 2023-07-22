@@ -1,7 +1,7 @@
 local M = {}
 
 local api = vim.api
-local jelly = require("infra.jellyfish")("parrot.sockets", "debug")
+local jelly = require("infra.jellyfish")("parrot.sockets")
 
 -- for: `$0`, `${0}`, `${0:zero}`
 local matcher = vim.regex([[\v(\$\d+)|(\$\{\d+(:[^}]+)?\})]])
