@@ -129,7 +129,7 @@ function M.goto_next()
     assert(api.nvim_get_mode().mode == "n")
 
     jumplist.push_here()
-    vsel.select_region(next_line, next_col_start, next_line + 1, next_col_stop)
+    vsel.select_region(winid, next_line, next_col_start, next_line + 1, next_col_stop)
     -- i just found select mode is not that convenient
     -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
     return true
