@@ -14,12 +14,25 @@ local sockets = require("parrot.sockets")
 
 local api = vim.api
 
-local state = {
-  ---@type {[string]: {[string]: string[]}} @{filetype: {prefix: [chirp]}}
-  cache = {},
-  ---@type parrot.RegionWatcher?
-  watcher = nil,
-}
+---cache of chirps: {filetype: {prefix: [chirp]}}
+---@type {[string]: {[string]: string[]}}
+local cache = {}
+
+---registry of watchers
+local registry = {}
+do
+  ---@private
+  ---@type {[integer]: parrot.RegionWatcher}
+  registry.kv = {}
+  ---@param bufnr integer
+  ---@return parrot.RegionWatcher?
+  function registry:get(bufnr) return self.kv[bufnr] end
+  ---@param bufnr integer
+  ---@param watcher parrot.RegionWatcher
+  function registry:remember(bufnr, watcher) self.kv[bufnr] = watcher end
+  ---@param bufnr integer
+  function registry:forget(bufnr) self.kv[bufnr] = nil end
+end
 
 local get_chirps
 do
@@ -33,8 +46,8 @@ do
 
   ---@param filetype string
   local function filetype_chirps(filetype)
-    if state.cache[filetype] == nil then state.cache[filetype] = parser(resolve_fpaths(filetype)) end
-    return state.cache[filetype]
+    if cache[filetype] == nil then cache[filetype] = parser(resolve_fpaths(filetype)) end
+    return cache[filetype]
   end
 
   ---@param filetype string
@@ -56,17 +69,19 @@ end
 function M.expand()
   ensure_modes("i")
 
-  --only one watcher exists at the same time
-  if state.watcher then
+  local winid = api.nvim_get_current_win()
+  local bufnr = api.nvim_win_get_buf(winid)
+
+  local watcher = registry:get(bufnr)
+
+  if watcher ~= nil then --only one watcher exists at the same time for each buffer
     jelly.debug("cancelling a watcher, for new watcher")
-    state.watcher:cancel()
-    state.watcher = nil
+    watcher:cancel()
+    registry:forget(bufnr)
   end
 
-  local bufnr, cursor
+  local cursor
   do
-    local winid = api.nvim_get_current_win()
-    bufnr = api.nvim_win_get_buf(winid)
     local tuple = api.nvim_win_get_cursor(winid)
     cursor = { row = tuple[1], col = tuple[2] }
   end
@@ -97,31 +112,33 @@ function M.expand()
     jumplist.push_here()
 
     api.nvim_buf_set_lines(bufnr, cursor.row - 1, cursor.row, true, inserts)
-    state.watcher = RegionWatcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts)
+    registry:remember(bufnr, RegionWatcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts))
     ex("stopinsert")
     return true
   end
 end
 
 function M.goto_next()
-  if state.watcher == nil then return jelly.debug("no active watcher") end
+  local bufnr = api.nvim_get_current_buf()
+  local watcher = registry:get(bufnr)
+  if watcher == nil then return jelly.debug("no active watcher") end
 
-  local watch_start_line, watch_stop_line = state.watcher:range()
+  local watch_start_line, watch_stop_line = watcher:range()
   if not (watch_start_line and watch_stop_line) then
-    state.watcher = nil
+    registry:forget(bufnr)
     return jelly.debug("the watcher stopped itself")
   end
 
   local winid = api.nvim_get_current_win()
-  if api.nvim_win_get_buf(winid) ~= state.watcher:bufnr() then return jelly.debug("not the same buffer") end
+  if api.nvim_win_get_buf(winid) ~= watcher:bufnr() then return jelly.debug("not the same buffer") end
 
   do
     jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
     local next_line, next_col_start, next_col_stop = sockets.next(winid, watch_start_line, watch_stop_line)
     if not (next_line and next_col_start and next_col_stop) then
       jelly.debug("cancelling a watcher, due to no more matches")
-      state.watcher:cancel()
-      state.watcher = nil
+      watcher:cancel()
+      registry:forget(bufnr)
       return
     end
 
@@ -136,18 +153,17 @@ function M.goto_next()
   end
 end
 
-function M.running() return state.watcher ~= nil end
+function M.running() return registry:get(api.nvim_get_current_buf()) ~= nil end
 
 --for debugging ATM
 function M.cancel()
-  if state.watcher == nil then return end
-  state.watcher:cancel()
-  state.watcher = nil
+  local bufnr = api.nvim_get_current_buf()
+  local watcher = registry:get(bufnr)
+  if watcher == nil then return end
+  watcher:cancel()
+  registry:forget(bufnr)
 end
 
-function M.reset_chirps(filetype)
-  if state.cache[filetype] == nil then return end
-  state.cache[filetype] = nil
-end
+function M.reset_chirps(filetype) cache[filetype] = nil end
 
 return M
