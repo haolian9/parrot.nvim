@@ -2,7 +2,8 @@ local M = {}
 
 local ex = require("infra.ex")
 local fn = require("infra.fn")
-local jelly = require("infra.jellyfish")("parrot")
+local fs = require("infra.fs")
+local jelly = require("infra.jellyfish")("parrot", "debug")
 local jumplist = require("infra.jumplist")
 local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
@@ -164,6 +165,41 @@ function M.cancel()
   registry:forget(bufnr)
 end
 
-function M.reset_chirps(filetype) cache[filetype] = nil end
+do
+  function M.reset_chirps(filetype) cache[filetype] = nil end
+
+  local user_root = fs.joinpath(vim.fn.stdpath("config"), "chirps")
+
+  ---@param filetype? string
+  function M.edit_chirps(filetype)
+    assert(filetype ~= "")
+    if filetype == nil then
+      local bufnr = api.nvim_get_current_buf()
+      filetype = prefer.bo(bufnr, "filetype")
+      if filetype == "" then return jelly.warn("no available filetype") end
+      jelly.debug("filetype1: %s", filetype)
+    end
+
+    local fpath = fs.joinpath(user_root, string.format("%s.snippets", filetype))
+    ex("tabedit", fpath)
+    local bufnr = api.nvim_get_current_buf()
+    prefer.bo(bufnr, "bufhidden", "wipe")
+    api.nvim_create_autocmd("bufwipeout", { buffer = bufnr, once = true, callback = function() M.reset_chirps(filetype) end })
+  end
+
+  local availables
+  ---for usercmd completion
+  ---@return string[]
+  function M._editable_chirps()
+    if availables ~= nil then return availables end
+
+    availables = {}
+    for fpath, ftype in fs.iterdir(user_root) do
+      if ftype == "file" then table.insert(availables, fs.stem(fpath)) end
+    end
+
+    return availables
+  end
+end
 
 return M
