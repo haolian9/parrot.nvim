@@ -7,6 +7,7 @@ local jelly = require("infra.jellyfish")("parrot", "debug")
 local jumplist = require("infra.jumplist")
 local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
+local strlib = require("infra.strlib")
 local vsel = require("infra.vsel")
 
 local parser = require("parrot.parser")
@@ -56,19 +57,11 @@ do
   function get_chirps(filetype, key) return filetype_chirps(filetype)[key] or filetype_chirps("all")[key] end
 end
 
-local function ensure_modes(...)
-  local held = api.nvim_get_mode().mode
-  for i = 1, select("#", ...) do
-    if held == select(i, ...) then return end
-  end
-  error("unreachable: unexpected mode")
-end
-
 --starts with insert-mode, stops with normal-mode
 --returns true when it has made an expand
 ---@return true?
 function M.expand()
-  ensure_modes("i")
+  assert(strlib.startswith(api.nvim_get_mode().mode, "i"))
 
   local winid = api.nvim_get_current_win()
   local bufnr = api.nvim_win_get_buf(winid)
