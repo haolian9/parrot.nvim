@@ -20,9 +20,19 @@ a poor man's snippet expanding tool
 * just works (tm)
 * it's far from stable
 
+
 ## usage
 TBD
+
 
 ## todo
 * possibly making use of inline extmarks for placeholder evaluation and navigation
 * isolating every expanding
+
+
+## notes
+i had always been using ultisnips, while when i started to adopt lua in my nvim rice, i wanted to replace it to get rid of the
+depency of python, even python is my favorite language all the time. but i could not found one meets my need, also i want to see
+how hard is it to implement an usable one for myself (and now i knew that's not easy as there are too many states need to
+maintain). so i rolled my own one in the way i knew, it lacks many features, and isnt comparable to ultisnips nor others from
+nvim realm, yet i still enjoy using and polishing it.
