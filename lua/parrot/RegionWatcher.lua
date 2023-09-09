@@ -3,47 +3,51 @@ local jelly = require("infra.jellyfish")("parrot.regionwatcher")
 
 local api = vim.api
 
----@class BufLineEventMaster
----@field private orig_first number
----@field private orig_last number
----@field private now_last number
----@field op string
----@field affected_lines number
-local BufLineEventInterpreter = {}
+local BufLineEventInterpreter
 do
-  -- lines are 0-based
-  -- left inclusive, right exclusive
-  function BufLineEventInterpreter:orig_range() return self.orig_first, self.orig_last end
-  -- lines are 0-based
-  -- left inclusive, right exclusive
-  function BufLineEventInterpreter:now_range() return self.orig_first, self.now_last end
+  ---@class BufLineEventMaster
+  ---@field private orig_first number
+  ---@field private orig_last number
+  ---@field private now_last number
+  ---@field op string
+  ---@field affected_lines number
+  local Prototype = {}
+
+  Prototype.__index = Prototype
 
   -- lines are 0-based
   -- left inclusive, right exclusive
-  function BufLineEventInterpreter:added_range()
+  function Prototype:orig_range() return self.orig_first, self.orig_last end
+  -- lines are 0-based
+  -- left inclusive, right exclusive
+  function Prototype:now_range() return self.orig_first, self.now_last end
+
+  -- lines are 0-based
+  -- left inclusive, right exclusive
+  function Prototype:added_range()
     assert(self.op == "add", "unreachable")
     return self.orig_last, self.now_last
   end
   -- lines are 0-based and in asc order
-  function BufLineEventInterpreter:added_lines()
+  function Prototype:added_lines()
     assert(self.op == "add", "unreachable")
     return fn.range(self.orig_last, self.now_last)
   end
   -- lines are 0-based
   -- left inclusive, right exclusive
-  function BufLineEventInterpreter:deleted_range()
+  function Prototype:deleted_range()
     assert(self.op == "del", "unreachable")
     return self.now_last, self.orig_last
   end
   -- lines are 0-based and in asc order
-  function BufLineEventInterpreter:deleted_lines()
+  function Prototype:deleted_lines()
     assert(self.op == "del", "unreachable")
     return fn.range(self.now_last, self.orig_last)
   end
 
   ---@param ... any @same to the signature of nvim_buf_attach.on_lines()
   ---@return BufLineEventMaster
-  function BufLineEventInterpreter.new(...)
+  function BufLineEventInterpreter(...)
     local _, _, _, orig_first, orig_last, now_last = ...
 
     local n = now_last - orig_last
@@ -65,7 +69,7 @@ do
       now_last = now_last,
       op = op,
       affected_lines = affected_lines,
-    }, { __index = BufLineEventInterpreter })
+    }, Prototype)
   end
 end
 
@@ -103,7 +107,7 @@ do
     assert(state.watching)
     if state.cancelled then return self:stop_watching() end
 
-    local interpret = BufLineEventInterpreter.new(...)
+    local interpret = BufLineEventInterpreter(...)
     local _, _, _, orig_first, orig_last, now_last = ...
     assert(state.range ~= nil)
 
@@ -137,7 +141,7 @@ do
         state.range.stop_line = state.range.stop_line - interpret.affected_lines
       elseif orig_first == state.range.start_line and orig_last == state.range.stop_line then
         -- equal watch
-        if orig_first == now_last then
+        if orig_first <= now_last then
           -- all line are deleted, stop watching
           return self:stop_watching()
         else
@@ -164,8 +168,11 @@ do
       -- no-op
       assert(interpret.op == "nochange")
     end
-    assert(state.range.start_line >= 0, state.range.start_line)
-    assert(state.range.stop_line >= 0, state.range.stop_line)
+
+    if not (state.range.start_line >= 0 and state.range.stop_line >= 0) then
+      jelly.err("state.range=%s, op=%s, origin.first=%d,last=%d, now.last=%d", state.range, interpret.op, orig_first, orig_last, now_last)
+      error("unreachable")
+    end
   end
 
   function RegionWatcher:bufnr() return self.state.bufnr end

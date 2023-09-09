@@ -3,7 +3,7 @@ local M = {}
 local ex = require("infra.ex")
 local fn = require("infra.fn")
 local fs = require("infra.fs")
-local jelly = require("infra.jellyfish")("parrot", "debug")
+local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
 local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
@@ -107,9 +107,45 @@ function M.expand()
 
     api.nvim_buf_set_lines(bufnr, cursor.row - 1, cursor.row, true, inserts)
     registry:remember(bufnr, RegionWatcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts))
-    ex("stopinsert")
     return true
   end
+end
+
+---@param winid integer
+---@param chirps string[]
+---@param insert_lnum integer @0-based
+---@param insert_col integer @0-based
+---@param cursor_at_end boolean @nil=false
+function M.expand_external_chirps(chirps, winid, insert_lnum, insert_col, cursor_at_end)
+  if cursor_at_end == nil then cursor_at_end = false end
+
+  local bufnr = api.nvim_win_get_buf(winid)
+
+  local watcher = registry:get(bufnr)
+
+  if watcher ~= nil then --only one watcher exists at the same time for each buffer
+    jelly.debug("cancelling a watcher, for new watcher")
+    watcher:cancel()
+    registry:forget(bufnr)
+  end
+
+  local inserts = {}
+  do
+    local curline = api.nvim_get_current_line()
+    local indent = string.match(curline, "^%s+") or ""
+    local chirp_iter = fn.iter(chirps)
+    table.insert(inserts, chirp_iter())
+    for line in chirp_iter do
+      table.insert(inserts, indent .. line)
+    end
+  end
+
+  jumplist.push_here()
+
+  api.nvim_buf_set_text(bufnr, insert_lnum, insert_col, insert_lnum, insert_col, inserts)
+  registry:remember(bufnr, RegionWatcher(bufnr, insert_lnum, insert_lnum + #inserts))
+
+  if cursor_at_end then api.nvim_win_set_cursor(winid, { insert_lnum + 1 + #inserts - 1, #inserts[#inserts] - 1 + 1 }) end
 end
 
 function M.goto_next()
