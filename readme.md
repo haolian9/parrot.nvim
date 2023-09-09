@@ -1,10 +1,16 @@
-poor mans's snippet expanding tool
+a poor man's snippet expanding tool
 
-## features/limits
-* it's very opinionated, not ready for public use at the moment
-* uses a subset syntax of ultisnips's
+## impl/features/limits
+* uses regex to match placeholder, which makes it eror-prone
+    * thus it does not honor the jump order specified in the placeholder, `$1` vs `$2`
+* the processing on `nvim_buf_attach(on_lines)` has not been well tested, which makes the state transition fragile
+    * that's why i exposed `parrot.cancel()`
+    * and every buffer can only have one running expanding operation
+* uses a subset syntax of ultisnips's: `$0`, `${0}`, `${0:zero}`
 * no placeholder evaluation
-* no sh, python interpolation
+    * no sh, python interpolation
+* limited support expanding external snippets, eg: lsp snippet completion, docgen
+
 
 ## prerequisites
 * nvim 0.9.*
@@ -12,33 +18,11 @@ poor mans's snippet expanding tool
 
 ## status
 * just works (tm)
+* it's far from stable
 
 ## usage
-* have below configs i used personally
-* add snippets in `${rtp}/chirps/${ft}.snippets`
-
-```
-vim.keymap.set("i", "<tab>", function()
-  local parrot = require("parrot")
-  local nvimkeys = require("infra.nvimkeys")
-
-  if parrot.running() then
-    parrot.goto_next()
-  else
-    if parrot.expand() then return end
-    assert(api.nvim_get_mode().mode == "i")
-    api.nvim_feedkeys(nvimkeys("<tab>"), "n", false)
-  end
-end)
-vim.keymap.set({ "n", "v", "x" }, "<tab>", function()
-  local parrot = require("parrot")
-  local nvimkeys = require("infra.nvimkeys")
-
-  if parrot.goto_next() then return end
-  -- for tmux only which can not distinguish between <c-i> and <tab>
-  api.nvim_feedkeys(nvimkeys("<tab>"), "n", false)
-end)
-```
+TBD
 
 ## todo
-* possibly making use of inlay extmarks for placeholder evaluation and navigation
+* possibly making use of inline extmarks for placeholder evaluation and navigation
+* isolating every expanding
