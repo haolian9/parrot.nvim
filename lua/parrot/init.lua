@@ -216,18 +216,14 @@ do
     api.nvim_create_autocmd("bufwipeout", { buffer = bufnr, once = true, callback = function() M.reset_chirps(filetype) end })
   end
 
-  local availables
-  ---for usercmd completion
+  ---made for usercmd completion
   ---@return string[]
-  function M._editable_chirps()
-    if availables ~= nil then return availables end
-
-    availables = {}
+  function M.editable_chirps()
+    local filetypes = {}
     for fpath, ftype in fs.iterdir(user_root) do
-      if ftype == "file" then table.insert(availables, fs.stem(fpath)) end
+      if ftype == "file" then table.insert(filetypes, fs.stem(fpath)) end
     end
-
-    return availables
+    return filetypes
   end
 end
 
