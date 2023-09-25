@@ -3,8 +3,8 @@ local M = {}
 local api = vim.api
 local jelly = require("infra.jellyfish")("parrot.sockets")
 
--- for: `$0`, `${0}`, `${0:zero}`
-local matcher = vim.regex([[\v(\$\d+)|(\$\{\d+(:[^}]+)?\})]])
+-- for: `$0`, `${0}`, `${0:zero}`, `${0:}`
+local matcher = vim.regex([[\v(\$\d+)|(\$\{\d+(:[^}]*)?\})]])
 
 ---@param bufnr number
 ---@param start_line number inclusive

@@ -7,7 +7,6 @@ local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
 local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
-local strlib = require("infra.strlib")
 local vsel = require("infra.vsel")
 
 local parser = require("parrot.parser")
@@ -63,68 +62,12 @@ do
 end
 
 do --state transitions
-  --starts with insert-mode, stops with normal-mode
-  --returns true when it has made an expand
-  ---@return true?
-  function M.expand()
-    assert(strlib.startswith(api.nvim_get_mode().mode, "i"))
-
-    local winid = api.nvim_get_current_win()
-    local bufnr = api.nvim_win_get_buf(winid)
-
-    local watcher = registry:get(bufnr)
-
-    if watcher ~= nil then --only one watcher exists at the same time for each buffer
-      jelly.debug("cancelling a watcher, for new watcher")
-      watcher:cancel()
-      registry:forget(bufnr)
-    end
-
-    local cursor
-    do
-      local tuple = api.nvim_win_get_cursor(winid)
-      cursor = { row = tuple[1], col = tuple[2] }
-    end
-
-    local curline = assert(api.nvim_buf_get_lines(bufnr, cursor.row - 1, cursor.row, true)[1])
-    if cursor.col ~= #curline then return jelly.debug("only trigger at EOL") end
-
-    local key = string.match(curline, "[%w_]+$")
-    if key == nil then return jelly.debug("no key found") end
-
-    -- expand snippet
-    do
-      local chirps = get_chirps(prefer.bo(bufnr, "filetype"), key)
-      if chirps == nil then return jelly.debug("no available snippet for %s", key) end
-
-      local inserts = {}
-      do
-        local indent = string.match(curline, "^%s+") or ""
-        for idx, line in ipairs(chirps) do
-          if idx == 1 then
-            table.insert(inserts, string.sub(curline, 1, -#key - 1) .. chirps[1])
-          else
-            table.insert(inserts, indent .. line)
-          end
-        end
-      end
-
-      jumplist.push_here()
-
-      api.nvim_buf_set_lines(bufnr, cursor.row - 1, cursor.row, true, inserts)
-      registry:remember(bufnr, RegionWatcher(bufnr, cursor.row - 1, cursor.row - 1 + #inserts))
-      return true
-    end
-  end
-
   ---@param winid integer
   ---@param chirps string[]
   ---@param insert_lnum integer @0-based
   ---@param insert_col integer @0-based
   ---@param cursor_at_end boolean @nil=false
-  function M.expand_external_chirps(chirps, winid, insert_lnum, insert_col, cursor_at_end)
-    if cursor_at_end == nil then cursor_at_end = false end
-
+  function M._expand(chirps, winid, insert_lnum, insert_col, cursor_at_end)
     local bufnr = api.nvim_win_get_buf(winid)
 
     local watcher = registry:get(bufnr)
@@ -154,6 +97,35 @@ do --state transitions
     if cursor_at_end then api.nvim_win_set_cursor(winid, { insert_lnum + 1 + #inserts - 1, #inserts[#inserts] - 1 + 1 }) end
   end
 
+  ---@param cursor_at_end boolean
+  ---@return true? @true when made an expansion
+  function M.expand(cursor_at_end)
+    local winid = api.nvim_get_current_win()
+    local bufnr = api.nvim_win_get_buf(winid)
+
+    local cursor_lnum, cursor_col = unpack(api.nvim_win_get_cursor(winid))
+    cursor_lnum = cursor_lnum - 1
+
+    local key
+    do
+      local curline = api.nvim_get_current_line()
+      local leading = string.sub(curline, 1, cursor_col)
+      key = string.match(leading, "[%w_]+$")
+      if key == nil then return jelly.info("no key found") end
+    end
+
+    local chirps = get_chirps(prefer.bo(bufnr, "filetype"), key)
+    if chirps == nil then return jelly.info("no available snippet for %s", key) end
+
+    local insert_col = cursor_col - #key
+    api.nvim_buf_set_text(bufnr, cursor_lnum, insert_col, cursor_lnum, cursor_col, {})
+    M._expand(chirps, winid, cursor_lnum, insert_col, cursor_at_end)
+
+    return true
+  end
+
+  M.expand_external_chirps = M._expand
+
   function M.goto_next()
     local bufnr = api.nvim_get_current_buf()
     local watcher = registry:get(bufnr)
@@ -166,7 +138,7 @@ do --state transitions
     end
 
     local winid = api.nvim_get_current_win()
-    if api.nvim_win_get_buf(winid) ~= watcher:bufnr() then return jelly.debug("not the same buffer") end
+    if api.nvim_win_get_buf(winid) ~= watcher:bufnr() then return jelly.warn("not the same buffer") end
 
     do
       jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
@@ -211,7 +183,6 @@ do --auxiliary apis
       local bufnr = api.nvim_get_current_buf()
       filetype = prefer.bo(bufnr, "filetype")
       if filetype == "" then return jelly.warn("no available filetype") end
-      jelly.debug("filetype1: %s", filetype)
     end
 
     local fpath = fs.joinpath(facts.user_root, string.format("%s.snippets", filetype))
