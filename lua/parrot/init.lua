@@ -78,10 +78,11 @@ do --state transitions
       registry:forget(bufnr)
     end
 
-    local inserts = {}
+    local indent, inserts
     do
+      inserts = {}
       local curline = api.nvim_get_current_line()
-      local indent = string.match(curline, "^%s+") or ""
+      indent = string.match(curline, "^%s+") or ""
       local chirp_iter = fn.iter(chirps)
       table.insert(inserts, chirp_iter())
       for line in chirp_iter do
@@ -94,7 +95,17 @@ do --state transitions
     api.nvim_buf_set_text(bufnr, insert_lnum, insert_col, insert_lnum, insert_col, inserts)
     registry:remember(bufnr, RegionWatcher(bufnr, insert_lnum, insert_lnum + #inserts))
 
-    if cursor_at_end then api.nvim_win_set_cursor(winid, { insert_lnum + 1 + #inserts - 1, #inserts[#inserts] - 1 + 1 }) end
+    if cursor_at_end then
+      local row, col
+      if #inserts == 1 then
+        row = insert_lnum + 1
+        col = insert_col + #inserts[1] --insert_col + #firstline
+      else
+        row = insert_lnum + 1 + #inserts
+        col = #indent + #inserts[#inserts] --indents + #lastline
+      end
+      api.nvim_win_set_cursor(winid, { row, col })
+    end
   end
 
   ---@param cursor_at_end boolean
