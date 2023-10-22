@@ -11,7 +11,7 @@ local vsel = require("infra.vsel")
 
 local parser = require("parrot.parser")
 local RegionWatcher = require("parrot.RegionWatcher")
-local sockets = require("parrot.sockets")
+local holes = require("parrot.holes")
 
 local api = vim.api
 
@@ -101,7 +101,7 @@ do --state transitions
         row = insert_lnum + 1
         col = insert_col + #inserts[1] --insert_col + #firstline
       else
-        row = insert_lnum + 1 + #inserts
+        row = insert_lnum + 1 + #inserts - 1
         col = #indent + #inserts[#inserts] --indents + #lastline
       end
       api.nvim_win_set_cursor(winid, { row, col })
@@ -153,7 +153,7 @@ do --state transitions
 
     do
       jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
-      local next_line, next_col_start, next_col_stop = sockets.next(winid, watch_start_line, watch_stop_line)
+      local next_line, next_col_start, next_col_stop = holes.next(winid, watch_start_line, watch_stop_line)
       if not (next_line and next_col_start and next_col_stop) then
         jelly.debug("cancelling a watcher, due to no more matches")
         watcher:cancel()
