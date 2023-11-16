@@ -9,9 +9,9 @@ local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
 local vsel = require("infra.vsel")
 
+local holes = require("parrot.holes")
 local parser = require("parrot.parser")
 local RegionWatcher = require("parrot.RegionWatcher")
-local holes = require("parrot.holes")
 
 local api = vim.api
 
@@ -52,8 +52,12 @@ do
 
   ---@param filetype string
   local function filetype_chirps(filetype)
-    if cache[filetype] == nil then cache[filetype] = parser(resolve_fpaths(filetype)) end
-    return cache[filetype]
+    local held = cache[filetype]
+    if held ~= nil then return held end
+
+    local fresh = parser(resolve_fpaths(filetype))
+    cache[filetype] = fresh
+    return fresh
   end
 
   ---@param filetype string
