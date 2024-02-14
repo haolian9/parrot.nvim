@@ -196,7 +196,7 @@ end
 ---@return parrot.RegionWatcher
 return function(bufnr, start_line, stop_line)
   do
-    vim.validate({ bufnr = { bufnr, "number" }, start_line = { start_line, "number" }, stop_line = { stop_line, "number" } })
+    assert(type(bufnr) == "number" and type(start_line) == "number" and type(stop_line) == "number")
     assert(start_line >= 0 and stop_line <= api.nvim_buf_line_count(bufnr))
   end
 
