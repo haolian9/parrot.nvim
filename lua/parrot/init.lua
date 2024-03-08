@@ -141,6 +141,7 @@ do --state transitions
 
   M.expand_external_chirps = M._expand
 
+  ---@return true? @true if next hole exists
   function M.goto_next()
     local bufnr = api.nvim_get_current_buf()
     local watcher = registry:get(bufnr)
@@ -155,25 +156,49 @@ do --state transitions
     local winid = api.nvim_get_current_win()
     if api.nvim_win_get_buf(winid) ~= watcher:bufnr() then return jelly.warn("not the same buffer") end
 
-    do
-      jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
-      local next_line, next_col_start, next_col_stop = holes.next(winid, watch_start_line, watch_stop_line)
-      if not (next_line and next_col_start and next_col_stop) then
-        jelly.debug("cancelling a watcher, due to no more matches")
-        watcher:cancel()
-        registry:forget(bufnr)
-        return
-      end
-
-      api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
-      assert(api.nvim_get_mode().mode == "n")
-
-      jumplist.push_here()
-      vsel.select_region(winid, next_line, next_col_start, next_line + 1, next_col_stop)
-      -- i just found select mode is not that convenient
-      -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
-      return true
+    jelly.debug("finding next socket in [%d, %d)", watch_start_line, watch_stop_line)
+    local next_line, next_col_start, next_col_stop = holes.next(winid, watch_start_line, watch_stop_line)
+    if not (next_line and next_col_start and next_col_stop) then
+      jelly.debug("cancelling a watcher, due to no more matches")
+      watcher:cancel()
+      registry:forget(bufnr)
+      return
     end
+
+    api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
+    assert(api.nvim_get_mode().mode == "n")
+
+    jumplist.push_here()
+
+    vsel.select_region(winid, next_line, next_col_start, next_line + 1, next_col_stop)
+
+    -- i just found select mode is not that convenient
+    -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
+    return true
+  end
+
+  function M.purify_placeholder()
+    local bufnr = api.nvim_get_current_buf()
+    local range = vsel.range(bufnr)
+    assert(range)
+    assert(range.stop_line - range.start_line == 1)
+
+    local purified
+    do
+      local lines = api.nvim_buf_get_text(bufnr, range.start_line, range.start_col, range.start_line, range.stop_col, {})
+      assert(#lines == 1, #lines)
+      local raw = lines[1]
+      if #raw < 4 then return jelly.warn("not a long-enough placeholder") end
+
+      local count
+      --this pattern should respect parrot.holes.matcher
+      purified, count = string.gsub(raw, "%${%d+:?([^}]*)}", "%1")
+      if count ~= 1 then return jelly.warn("not a pattern-matched placeholder") end
+
+      assert(purified ~= raw)
+    end
+
+    api.nvim_buf_set_text(bufnr, range.start_line, range.start_col, range.start_line, range.stop_col, { purified })
   end
 
   function M.running() return registry:get(api.nvim_get_current_buf()) ~= nil end
