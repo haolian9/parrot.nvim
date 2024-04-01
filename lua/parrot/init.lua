@@ -238,8 +238,8 @@ do
   ---@return string[]
   function M.comp.editable_chirps()
     local filetypes = {}
-    for fpath, ftype in fs.iterdir(facts.user_root) do
-      if ftype == "file" then table.insert(filetypes, fs.stem(fpath)) end
+    for fpath in fs.iterfiles(facts.user_root) do
+      table.insert(filetypes, fs.stem(fpath))
     end
     return filetypes
   end
