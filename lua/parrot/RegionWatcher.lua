@@ -11,36 +11,36 @@ do
   ---@field private now_last number
   ---@field op string
   ---@field affected_lines number
-  local Prototype = {}
+  local Impl = {}
 
-  Prototype.__index = Prototype
-
-  -- lines are 0-based
-  -- left inclusive, right exclusive
-  function Prototype:orig_range() return self.orig_first, self.orig_last end
-  -- lines are 0-based
-  -- left inclusive, right exclusive
-  function Prototype:now_range() return self.orig_first, self.now_last end
+  Impl.__index = Impl
 
   -- lines are 0-based
   -- left inclusive, right exclusive
-  function Prototype:added_range()
+  function Impl:orig_range() return self.orig_first, self.orig_last end
+  -- lines are 0-based
+  -- left inclusive, right exclusive
+  function Impl:now_range() return self.orig_first, self.now_last end
+
+  -- lines are 0-based
+  -- left inclusive, right exclusive
+  function Impl:added_range()
     assert(self.op == "add", "unreachable")
     return self.orig_last, self.now_last
   end
   -- lines are 0-based and in asc order
-  function Prototype:added_lines()
+  function Impl:added_lines()
     assert(self.op == "add", "unreachable")
     return fn.range(self.orig_last, self.now_last)
   end
   -- lines are 0-based
   -- left inclusive, right exclusive
-  function Prototype:deleted_range()
+  function Impl:deleted_range()
     assert(self.op == "del", "unreachable")
     return self.now_last, self.orig_last
   end
   -- lines are 0-based and in asc order
-  function Prototype:deleted_lines()
+  function Impl:deleted_lines()
     assert(self.op == "del", "unreachable")
     return fn.range(self.now_last, self.orig_last)
   end
@@ -69,7 +69,7 @@ do
       now_last = now_last,
       op = op,
       affected_lines = affected_lines,
-    }, Prototype)
+    }, Impl)
   end
 end
 
