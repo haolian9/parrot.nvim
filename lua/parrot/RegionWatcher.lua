@@ -1,3 +1,4 @@
+local buflines = require("infra.buflines")
 local fn = require("infra.fn")
 local jelly = require("infra.jellyfish")("parrot.regionwatcher")
 
@@ -197,7 +198,7 @@ end
 return function(bufnr, start_line, stop_line)
   do
     assert(type(bufnr) == "number" and type(start_line) == "number" and type(stop_line) == "number")
-    assert(start_line >= 0 and stop_line <= api.nvim_buf_line_count(bufnr))
+    assert(start_line >= 0 and stop_line <= buflines.count(bufnr))
   end
 
   jelly.debug("start watching buf=%d [%d, %d)", bufnr, start_line, stop_line)
