@@ -1,11 +1,11 @@
 local M = {}
 
 local ex = require("infra.ex")
+local feedkeys = require("infra.feedkeys")
 local fn = require("infra.fn")
 local fs = require("infra.fs")
 local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
-local nvimkeys = require("infra.nvimkeys")
 local prefer = require("infra.prefer")
 local vsel = require("infra.vsel")
 
@@ -165,15 +165,15 @@ do --state transitions
       return
     end
 
-    api.nvim_feedkeys(nvimkeys("<esc>"), "nx", false)
+    feedkeys("<esc>", "nx")
     assert(api.nvim_get_mode().mode == "n")
 
     jumplist.push_here()
 
     vsel.select_region(winid, next_line, next_col_start, next_line + 1, next_col_stop)
 
-    -- i just found select mode is not that convenient
-    -- api.nvim_feedkeys(nvimkeys("<c-g>"), "nx", false)
+    --i just found select mode is not that convenient
+    -- feedkeys("<c-g>", "nx")
     return true
   end
 
