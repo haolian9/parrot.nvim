@@ -1,10 +1,12 @@
 local M = {}
 
+local VimVeryRegex = require("infra.VimVeryRegex")
+
 local api = vim.api
 local jelly = require("infra.jellyfish")("parrot.holes")
 
 -- for: `$0`, `${0}`, `${0:zero}`, `${0:}`
-local matcher = vim.regex([[\v(\$\d+)|(\$\{\d+(:[^}]*)?\})]])
+local matcher = VimVeryRegex([[\$\d+|\$\{\d+(:[^}]*)?\}]])
 
 ---@param bufnr number
 ---@param start_line number inclusive
