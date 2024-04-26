@@ -89,7 +89,7 @@ end
 return function(fpaths)
   local state = ParsingState()
 
-  for line in fn.iter_chained(fn.map(function(el) return file_lines(el) end, fpaths)) do
+  for line in fn.iter_chained(fn.map(file_lines, fpaths)) do
     assert(state.next)
     state.next(state, line)
   end
