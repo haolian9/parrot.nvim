@@ -75,21 +75,12 @@ function process_inside_defn(state, line)
   table.insert(state.current_block, line)
 end
 
-local function file_lines(fpath)
-  local file, err = io.open(fpath, "r")
-  if file == nil then error(err) end
-  local content = file:read("*a")
-  file:close()
-
-  return fn.split_iter(content, "\n")
-end
-
 ---@param fpaths (fun(): string?)|string[]
 ---@return {[string]: string[]}
 return function(fpaths)
   local state = ParsingState()
 
-  for line in fn.iter_chained(fn.map(file_lines, fpaths)) do
+  for line in fn.iter_chained(fn.map(io.lines, fpaths)) do
     assert(state.next)
     state.next(state, line)
   end

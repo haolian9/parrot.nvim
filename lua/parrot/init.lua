@@ -8,6 +8,7 @@ local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
 local prefer = require("infra.prefer")
 local vsel = require("infra.vsel")
+local wincursor = require("infra.wincursor")
 
 local holes = require("parrot.holes")
 local parser = require("parrot.parser")
@@ -100,15 +101,15 @@ do --state transitions
     registry:remember(bufnr, RegionWatcher(bufnr, insert_lnum, insert_lnum + #inserts))
 
     if cursor_at_end then
-      local row, col
+      local lnum, col
       if #inserts == 1 then
-        row = insert_lnum + 1
+        lnum = insert_lnum
         col = insert_col + #inserts[1] --insert_col + #firstline
       else
-        row = insert_lnum + 1 + #inserts - 1
+        lnum = insert_lnum + #inserts - 1
         col = #indent + #inserts[#inserts] --indents + #lastline
       end
-      api.nvim_win_set_cursor(winid, { row, col })
+      wincursor.go(winid, lnum, col)
     end
   end
 
@@ -118,13 +119,12 @@ do --state transitions
     local winid = api.nvim_get_current_win()
     local bufnr = api.nvim_win_get_buf(winid)
 
-    local cursor_lnum, cursor_col = unpack(api.nvim_win_get_cursor(winid))
-    cursor_lnum = cursor_lnum - 1
+    local cursor = wincursor.position(winid)
 
     local key
     do
       local curline = api.nvim_get_current_line()
-      local leading = string.sub(curline, 1, cursor_col)
+      local leading = string.sub(curline, 1, cursor.col)
       key = string.match(leading, "[%w_]+$")
       if key == nil then return jelly.info("no key found") end
     end
@@ -132,9 +132,9 @@ do --state transitions
     local chirps = get_chirps(prefer.bo(bufnr, "filetype"), key)
     if chirps == nil then return jelly.info("no available snippet for %s", key) end
 
-    local insert_col = cursor_col - #key
-    api.nvim_buf_set_text(bufnr, cursor_lnum, insert_col, cursor_lnum, cursor_col, {})
-    M._expand(chirps, winid, cursor_lnum, insert_col, cursor_at_end)
+    local insert_col = cursor.col - #key
+    api.nvim_buf_set_text(bufnr, cursor.lnum, insert_col, cursor.lnum, cursor.col, {})
+    M._expand(chirps, winid, cursor.lnum, insert_col, cursor_at_end)
 
     return true
   end
