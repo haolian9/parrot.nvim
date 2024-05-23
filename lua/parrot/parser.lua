@@ -5,6 +5,7 @@
 -- * `^\s*$`          blank line
 
 local fn = require("infra.fn")
+local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot.parser", "info")
 
 local function startswith(str, mark) return string.sub(str, 1, #mark) == mark end
@@ -80,7 +81,12 @@ end
 return function(fpaths)
   local state = ParsingState()
 
-  for line in fn.iter_chained(fn.map(io.lines, fpaths)) do
+  local iter
+  iter = itertools.iter(fpaths)
+  iter = itertools.map(io.lines, iter)
+  iter = itertools.flatten(iter)
+
+  for line in iter do
     assert(state.next)
     state.next(state, line)
   end

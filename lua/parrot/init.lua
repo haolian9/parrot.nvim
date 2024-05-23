@@ -2,8 +2,8 @@ local M = {}
 
 local ex = require("infra.ex")
 local feedkeys = require("infra.feedkeys")
-local fn = require("infra.fn")
 local fs = require("infra.fs")
+local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
 local prefer = require("infra.prefer")
@@ -45,10 +45,12 @@ local get_chirps
 do
   ---@param filetype string
   local function resolve_fpaths(filetype)
-    return fn.iter_chained(fn.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, filetype), true) end, {
-      "chirps/%s.snippets",
-      "chirps/%s-*.snippets",
-    }))
+    local iter
+    iter = itertools.iter({ "chirps/%s.snippets", "chirps/%s-*.snippets" })
+    iter = itertools.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, filetype), true) end, iter)
+    iter = itertools.flatten(iter)
+
+    return iter
   end
 
   ---@param filetype string
@@ -88,7 +90,7 @@ do --state transitions
       inserts = {}
       local curline = api.nvim_get_current_line()
       indent = string.match(curline, "^%s+") or ""
-      local chirp_iter = fn.iter(chirps)
+      local chirp_iter = itertools.iter(chirps)
       table.insert(inserts, chirp_iter())
       for line in chirp_iter do
         table.insert(inserts, indent .. line)

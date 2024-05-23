@@ -1,5 +1,5 @@
 local buflines = require("infra.buflines")
-local fn = require("infra.fn")
+local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot.regionwatcher")
 
 local api = vim.api
@@ -32,7 +32,7 @@ do
   -- lines are 0-based and in asc order
   function Impl:added_lines()
     assert(self.op == "add", "unreachable")
-    return fn.range(self.orig_last, self.now_last)
+    return itertools.range(self.orig_last, self.now_last)
   end
   -- lines are 0-based
   -- left inclusive, right exclusive
@@ -43,7 +43,7 @@ do
   -- lines are 0-based and in asc order
   function Impl:deleted_lines()
     assert(self.op == "del", "unreachable")
-    return fn.range(self.now_last, self.orig_last)
+    return itertools.range(self.now_last, self.orig_last)
   end
 
   ---@param ... any @same to the signature of nvim_buf_attach.on_lines()
