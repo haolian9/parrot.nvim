@@ -4,7 +4,6 @@
 -- * `^#`             comment
 -- * `^\s*$`          blank line
 
-local fn = require("infra.fn")
 local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot.parser", "info")
 
