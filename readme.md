@@ -7,27 +7,44 @@ a poor man's snippet expanding tool
     * no sh, python interpolation
 * limited support expanding external snippets, eg: lsp snippet completion, docgen
 
-
 ## prerequisites
 * nvim 0.10.*
 * haolian9/infra.nvim
 
 ## status
 * just works
-
-
-## usage
-TBD
-
+* merely a toy, not supposed to be used publicly
 
 ## todo
 * select placeholder
 * property timing to terminate the expansion
 
+## usage
 
-## notes
-i had always been using ultisnips, while when i started to adopt lua in my nvim rice, i wanted to replace it to get rid of the
-depency of python, even python is my favorite language all the time. but i could not found one meets my need, also i want to see
-how hard is it to implement an usable one for myself (and now i knew that's not easy as there are too many states need to
-maintain). so i rolled my own one in the way i knew, it lacks many features, and isnt comparable to ultisnips nor others in the
-nvim realm, yet i still enjoy using and polishing it.
+here's my personal config
+```
+do --parrot
+  m.i("<tab>", function() ---always do expand, not jump
+    local parrot = require("parrot")
+
+    if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
+    if parrot.expand() then return feedkeys("<esc>", "n") end
+    assert(strlib.startswith(api.nvim_get_mode().mode, "i"))
+    feedkeys("<tab>", "n")
+  end)
+  m.n("<tab>", function() require("parrot").jump(1) end)
+  m.n("<s-tab>", function() require("parrot").jump(-1) end)
+
+  usercmd("ParrotCancel", function() require("parrot").cancel() end)
+
+  do --:ParrotEdit
+    local comp = cmds.ArgComp.constant(function() return require("parrot").comp.editable_chirp_fts() end)
+    local function default() return prefer.bo(api.nvim_get_current_buf(), "filetype") end
+
+    local spell = cmds.Spell("ParrotEdit", function(args) require("parrot").edit_chirp(args.filetype) end)
+    spell:add_flag("open", "string", false, "right", cmds.FlagComp.constant("open", { "left", "right", "above", "below", "inplace", "tab" }))
+    spell:add_arg("filetype", "string", false, default, comp)
+    cmds.cast(spell)
+  end
+end
+```
