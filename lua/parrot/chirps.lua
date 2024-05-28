@@ -1,22 +1,29 @@
 local M = {}
 
+local fs = require("infra.fs")
 local itertools = require("infra.itertools")
+local strlib = require("infra.strlib")
 
 local compiler = require("parrot.compiler")
+local facts = require("parrot.facts")
 local parser = require("parrot.parser")
-
-local api = vim.api
 
 ---cache of chirps: {filetype: {key: Compiled}}
 ---@type {[string]: {[string]: parrot.compiler.Compiled}}
 local chirps = {}
 
 ---@param ft string
+---@return fun(): string? @absolute paths
 local function collect_chirp_files(ft)
   local iter
-  iter = itertools.iter({ "chirps/%s.snippets", "chirps/%s-*.snippets" })
-  iter = itertools.map(function(fmt) return api.nvim_get_runtime_file(string.format(fmt, ft), true) end, iter)
-  iter = itertools.flatten(iter)
+
+  iter = fs.iterfiles(facts.user_root)
+
+  local exact = string.format("%s.snippets", ft)
+  local prefix = string.format("%s-", ft)
+  iter = itertools.filter(function(fname) return fname == exact or strlib.startswith(fname, prefix) end, iter)
+
+  iter = itertools.map(function(fname) return fs.joinpath(facts.user_root, fname) end, iter)
 
   return iter
 end
@@ -27,11 +34,9 @@ local function get_ft_chirps(ft)
   if held ~= nil then return held end
 
   local compiled = {}
-  do
-    local parsed = parser(collect_chirp_files(ft))
-    for key, lines in pairs(parsed) do
-      compiled[key] = compiler(lines)
-    end
+  local parsed = parser(collect_chirp_files(ft))
+  for key, lines in pairs(parsed) do
+    compiled[key] = compiler(lines)
   end
 
   chirps[ft] = compiled

@@ -4,6 +4,8 @@
 local M = {}
 
 local buflines = require("infra.buflines")
+local bufopen = require("infra.bufopen")
+local fs = require("infra.fs")
 local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
@@ -262,6 +264,32 @@ function M.cancel(bufnr)
 
   for _, xmid in ipairs(xmids) do
     anchors.del(state.bufnr, xmid)
+  end
+end
+
+do --auxiliary apis
+  ---@param ft? string
+  ---@param open_mode? infra.bufopen.Mode
+  function M.edit_chirp(ft, open_mode)
+    if ft == nil then ft = prefer.bo(api.nvim_get_current_buf(), "filetype") end
+    if ft == "" then return jelly.warn("no available filetype") end
+    open_mode = open_mode or "right"
+
+    bufopen(open_mode, fs.joinpath(facts.user_root, string.format("%s.snippets", ft)))
+
+    local chirp_bufnr = api.nvim_get_current_buf()
+    prefer.bo(chirp_bufnr, "bufhidden", "wipe")
+    api.nvim_create_autocmd("bufwipeout", { buffer = chirp_bufnr, once = true, callback = function() chirps.reset_ft_chirps(ft) end })
+  end
+
+  M.comp = {}
+  ---@return string[]
+  function M.comp.editable_chirp_fts()
+    local fts = {}
+    for fpath in fs.iterfiles(facts.user_root) do
+      table.insert(fts, fs.stem(fpath))
+    end
+    return fts
   end
 end
 
