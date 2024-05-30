@@ -82,7 +82,7 @@ do
     local iter
     iter = itertools.iter(tries)
     iter = itertools.map(function(try) return try_find_all(line, try) end, iter)
-    iter = itertools.flatten(iter)
+    iter = itertools.flat(iter)
 
     ---@param found parrot.compiler.Found
     iter = itertools.map(function(found)
@@ -109,7 +109,7 @@ do
 
     table.sort(pitches, function(a, b) return a.col < b.col end)
 
-    local compiled_line
+    local newline
     do
       local rope = ropes.new()
       local offset = 1
@@ -124,10 +124,18 @@ do
         offset = p.col + #p.raw
       end
       if offset <= #line then rope:put(string.sub(line, offset)) end
-      compiled_line = rope:get()
+      newline = rope:get()
     end
 
-    return compiled_line, pitches
+    do --necessary for: $2 in 'function $1($2)'
+      local hollow = 0
+      for _, p in ipairs(pitches) do
+        p.col = p.col - hollow
+        hollow = hollow + #p.raw - #p.text
+      end
+    end
+
+    return newline, pitches
   end
 end
 

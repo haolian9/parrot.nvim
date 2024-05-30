@@ -21,7 +21,7 @@ local api = vim.api
 
 local anchors = {}
 do
-  local create_opts = { virt_text = { { "" } }, virt_text_pos = "inline", invalidate = true, undo_restore = true }
+  local create_opts = { virt_text = { { "" } }, virt_text_pos = "inline", invalidate = true, undo_restore = true, right_gravity = false }
 
   ---presets:
   ---* it's an empty extmark, so called anchor
@@ -31,8 +31,8 @@ do
   ---@param lnum integer @0-based
   ---@param col integer @0-based
   function anchors.add(bufnr, lnum, col)
+    jelly.debug("creating xmark, lnum=%d, col=%d", lnum, col)
     local xmid = api.nvim_buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, create_opts)
-    jelly.debug("created xmid=%s", xmid)
     return xmid
   end
 
@@ -129,13 +129,28 @@ local function expand(chirp, winid, region)
 
     local xmids = {}
     do --anchor each pitch
-      local coloff = #indent
-      local lnumoff = cursor.lnum
-      for _, pitch in ipairs(chirp.pitches) do
+      local iter = itertools.iter(chirp.pitches)
+      do --the first one
+        local coloff = region.col
+        local lnumoff = cursor.lnum
+        local pitch = iter()
+
         local lnum = pitch.lnum + lnumoff
         local col = pitch.col + coloff - 1
         local xmid = anchors.add(bufnr, lnum, col)
         table.insert(xmids, xmid)
+      end
+
+      do
+        local coloff = #indent
+        local lnumoff = cursor.lnum
+
+        for pitch in iter do
+          local lnum = pitch.lnum + lnumoff
+          local col = pitch.col + coloff - 1
+          local xmid = anchors.add(bufnr, lnum, col)
+          table.insert(xmids, xmid)
+        end
       end
     end
 
@@ -201,7 +216,10 @@ end
 ---@param raw_chirp string[]
 ---@param winid integer
 ---@param region {lnum: integer, col: integer, col_end: integer} @col_end: exclusive?
-function M.expand_external_chirp(raw_chirp, winid, region) return expand(compiler(raw_chirp), winid, region) end
+function M.expand_external_chirp(raw_chirp, winid, region)
+  jelly.info("expanding: %s", raw_chirp)
+  return expand(compiler(raw_chirp), winid, region)
+end
 
 ---@param step -1|1 @not support v.count right now
 ---@return true? @true if next hole exists

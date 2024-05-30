@@ -83,7 +83,7 @@ return function(fpaths)
   local iter
   iter = itertools.iter(fpaths)
   iter = itertools.map(io.lines, iter)
-  iter = itertools.flatten(iter)
+  iter = itertools.flat(iter)
 
   for line in iter do
     assert(state.next)
