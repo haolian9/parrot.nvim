@@ -1,4 +1,4 @@
---todo: select placeholder
+--todo: visual select placeholder
 --todo: property timing to terminate the expansion
 
 local M = {}
@@ -78,7 +78,6 @@ do
   end
 
   function Impl:deactived()
-    assert(self.active)
     self.active = false
     self.xmids = {}
     self.jump_idx = -1
@@ -93,102 +92,139 @@ end
 ---@type {[integer]: parrot.BufState}
 local registry = {}
 
----@param chirp parrot.compiler.Compiled
----@param winid integer
----@param region {lnum: integer, col: integer, col_end: integer} @col_end exclusive
----@return true?
-local function expand(chirp, winid, region)
-  local bufnr = api.nvim_win_get_buf(winid)
-  local cursor = wincursor.position(winid)
+local expand
+do
+  ---@class parrot.ExpandRegion
+  ---@field lnum integer
+  ---@field col integer @0-based
+  ---@field col_end integer @0-based, exclusive
 
-  local indent, inserts
-  do
-    inserts = {}
-    local curline = assert(buflines.line(bufnr, cursor.lnum))
-    indent = string.match(curline, "^%s+") or ""
-    local chirp_iter = itertools.iter(chirp.lines)
-    table.insert(inserts, chirp_iter())
-    for line in chirp_iter do
-      table.insert(inserts, indent .. line)
-    end
-  end
+  ---@class parrot.ExpandContex
+  ---@field winid integer
+  ---@field bufnr integer
+  ---@field cursor {lnum: integer, col: integer}
+  ---@field chirp parrot.compiler.Compiled
+  ---@field region parrot.ExpandRegion
+  ---@field indent string
+  ---@field inserts string[]
+  ---@field state parrot.BufState
 
-  --replace the key with expanded snippet
-  api.nvim_buf_set_text(bufnr, region.lnum, region.col, region.lnum, region.col_end, inserts)
+  ---@param ctx parrot.ExpandContex
+  local function handle_chirp_without_pitch(ctx)
+    local state = ctx.state
 
-  local state = registry[bufnr]
-  if state == nil then
-    state = BufState(bufnr)
-    registry[bufnr] = state
-  end
-
-  do -- clear&setup xmids
-    for _, xmid in ipairs(state.xmids) do
-      anchors.del(state.bufnr, xmid)
-    end
-
-    local xmids = {}
-    do --anchor each pitch
-      local iter = itertools.iter(chirp.pitches)
-      do --the first one
-        local coloff = region.col
-        local lnumoff = cursor.lnum
-        local pitch = iter()
-
-        local lnum = pitch.lnum + lnumoff
-        local col = pitch.col + coloff - 1
-        local xmid = anchors.add(bufnr, lnum, col)
-        table.insert(xmids, xmid)
-      end
-
-      do
-        local coloff = #indent
-        local lnumoff = cursor.lnum
-
-        for pitch in iter do
-          local lnum = pitch.lnum + lnumoff
-          local col = pitch.col + coloff - 1
-          local xmid = anchors.add(bufnr, lnum, col)
-          table.insert(xmids, xmid)
-        end
-      end
-    end
-
-    assert(#xmids == #chirp.pitches)
-    state.xmids = xmids
-  end
-
-  do
-    local jump_idx
-    if #chirp.pitches > 0 then --goto min(nth)
-      local jump_nth
-      for idx, pitch in ipairs(chirp.pitches) do
-        if jump_idx == nil or pitch.nth < jump_nth then
-          jump_idx, jump_nth = idx, pitch.nth
-        end
-      end
-      local anchor = anchors.get(bufnr, state.xmids[jump_idx])
-      assert(anchor)
-      wincursor.go(winid, anchor.lnum, anchor.col)
-    else --goto the end of expansion
-      jump_idx = -1
+    do --goto the end of expansion
       local lnum, col
-      if #inserts == 1 then
+      local cursor, inserts = ctx.cursor, ctx.inserts
+      if #ctx.inserts == 1 then
         lnum = cursor.lnum
         col = cursor.col + #inserts[1] --insert_col + #firstline
       else
         lnum = cursor.lnum + #inserts - 1
-        col = #indent + #inserts[#inserts] --indents + #lastline
+        col = #ctx.indent + #inserts[#inserts] --indent + #lastline
       end
-      wincursor.go(winid, lnum, col)
+      wincursor.go(ctx.winid, lnum, col)
     end
 
-    state.jump_idx = jump_idx
+    state:deactived()
   end
 
-  state.active = true
+  ---@param ctx parrot.ExpandContex
+  local function handle_chirp_with_pitches(ctx)
+    local state = ctx.state
 
-  return true
+    do ---anchor xmarks
+      local xmids = {}
+
+      local iter = itertools.iter(ctx.chirp.pitches)
+      do --the first one
+        local coloff = ctx.region.col
+        local lnumoff = ctx.cursor.lnum
+        local pitch = iter()
+
+        local lnum = pitch.lnum + lnumoff
+        local col = pitch.col + coloff - 1
+        local xmid = anchors.add(ctx.bufnr, lnum, col)
+        table.insert(xmids, xmid)
+      end
+
+      do
+        local coloff = #ctx.indent
+        local lnumoff = ctx.cursor.lnum
+
+        for pitch in iter do
+          local lnum = pitch.lnum + lnumoff
+          local col = pitch.col + coloff - 1
+          local xmid = anchors.add(ctx.bufnr, lnum, col)
+          table.insert(xmids, xmid)
+        end
+      end
+
+      assert(#xmids == #ctx.chirp.pitches)
+      state.xmids = xmids
+    end
+
+    do --goto min(nth) anchor
+      local jump_idx, jump_nth
+      for idx, pitch in ipairs(ctx.chirp.pitches) do
+        if jump_idx == nil or pitch.nth < jump_nth then
+          jump_idx, jump_nth = idx, pitch.nth
+        end
+      end
+      local anchor = anchors.get(ctx.bufnr, state.xmids[jump_idx])
+      assert(anchor)
+      wincursor.go(ctx.winid, anchor.lnum, anchor.col)
+
+      state.jump_idx = jump_idx
+    end
+
+    state.active = true
+  end
+
+  ---@param chirp parrot.compiler.Compiled
+  ---@param winid integer
+  ---@param region parrot.ExpandRegion
+  ---@return true?
+  function expand(chirp, winid, region)
+    local bufnr = api.nvim_win_get_buf(winid)
+    local cursor = wincursor.position(winid)
+
+    local indent, inserts
+    do
+      inserts = {}
+      local curline = assert(buflines.line(bufnr, cursor.lnum))
+      indent = string.match(curline, "^%s+") or ""
+      local chirp_iter = itertools.iter(chirp.lines)
+      table.insert(inserts, chirp_iter())
+      for line in chirp_iter do
+        table.insert(inserts, indent .. line)
+      end
+    end
+
+    --replace the key with expanded snippet
+    api.nvim_buf_set_text(bufnr, region.lnum, region.col, region.lnum, region.col_end, inserts)
+
+    local state = registry[bufnr]
+    if state == nil then
+      state = BufState(bufnr)
+      registry[bufnr] = state
+    end
+
+    ---clean xmarks
+    for _, xmid in ipairs(state.xmids) do
+      anchors.del(state.bufnr, xmid)
+    end
+
+    local ctx = { winid = winid, bufnr = bufnr, cursor = cursor, chirp = chirp, region = region, indent = indent, inserts = inserts, state = state }
+
+    if #chirp.pitches == 0 then
+      handle_chirp_without_pitch(ctx)
+    else
+      handle_chirp_with_pitches(ctx)
+    end
+
+    return true
+  end
 end
 
 ---@return true? @true when made an expansion
@@ -273,12 +309,11 @@ function M.cancel(bufnr)
 
   local state = registry[bufnr]
   if state == nil then return end
-
   if not state.active then return end
 
   local xmids = state.xmids
-  state.xmids = {}
-  state.active = false
+
+  state:deactived()
 
   for _, xmid in ipairs(xmids) do
     anchors.del(state.bufnr, xmid)
