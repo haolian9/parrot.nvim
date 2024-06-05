@@ -1,3 +1,7 @@
+---design choices
+---* i fear one big complicated regex, it's hard to test, debug and maintain
+---* lpeg is not an better approach for this simple task, yet too much knowledge needs to learn before using it
+
 local itertools = require("infra.itertools")
 local listlib = require("infra.listlib")
 local strlib = require("infra.strlib")
@@ -18,7 +22,7 @@ do
 
   ---@type parrot.compiler.Try[] @iter(start,stop,num,text)
   local tries = {
-    function(str, offset)
+    function(str, offset) --$1
       local start, stop = string.find(str, "%$%d+", offset, false)
       if not (start and stop) then return end
       stop = stop + 1
@@ -26,7 +30,7 @@ do
       return start, stop, nth, ""
     end,
 
-    function(str, offset)
+    function(str, offset) --${1}
       local start, stop = string.find(str, "%${%d+}", offset, false)
       if not (start and stop) then return end
       stop = stop + 1
@@ -34,7 +38,7 @@ do
       return start, stop, nth, ""
     end,
 
-    function(str, offset)
+    function(str, offset) --${1:}
       local start, stop = string.find(str, "%${%d+:}", offset, false)
       if not (start and stop) then return end
       stop = stop + 1
@@ -42,7 +46,7 @@ do
       return start, stop, nth, ""
     end,
 
-    function(str, offset)
+    function(str, offset) --${1:what}
       local start, stop = string.find(str, "%${%d+:[^}]+}", offset, false)
       if not (start and stop) then return end
       stop = stop + 1
@@ -83,14 +87,7 @@ do
     iter = itertools.iter(tries)
     iter = itertools.map(function(try) return try_find_all(line, try) end, iter)
     iter = itertools.flat(iter)
-
-    ---@param found parrot.compiler.Found
-    iter = itertools.map(function(found)
-      if found == nil then return end
-      return { lnum = lnum, col = found.start, raw = string.sub(line, found.start, found.stop - 1), nth = found.nth, text = found.text }
-    end, iter)
-    ---@param pitch? parrot.Pitch
-    iter = itertools.filter(function(pitch) return pitch ~= nil end, iter)
+    iter = itertools.map(function(found) return { lnum = lnum, col = found.start, raw = string.sub(line, found.start, found.stop - 1), nth = found.nth, text = found.text } end, iter)
 
     return iter
   end

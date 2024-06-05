@@ -38,7 +38,6 @@ local function get_ft_chirps(ft)
   for key, lines in pairs(parsed) do
     compiled[key] = compiler(lines)
   end
-
   chirps[ft] = compiled
 
   return compiled
