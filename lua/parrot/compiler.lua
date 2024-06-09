@@ -2,7 +2,7 @@
 ---* i fear one big complicated regex, it's hard to test, debug and maintain
 ---* lpeg is not an better approach for this simple task, yet too much knowledge needs to learn before using it
 
-local itertools = require("infra.itertools")
+local its = require("infra.its")
 local listlib = require("infra.listlib")
 local strlib = require("infra.strlib")
 
@@ -78,18 +78,16 @@ do
 
   ---@param lnum integer
   ---@param line string
-  ---@return fun(): parrot.Pitch?
+  ---@return parrot.Pitch[]
   local function collect_pitches(lnum, line)
     assert(lnum ~= nil)
     assert(line ~= nil)
 
-    local iter
-    iter = itertools.iter(tries)
-    iter = itertools.map(function(try) return try_find_all(line, try) end, iter)
-    iter = itertools.flat(iter)
-    iter = itertools.map(function(found) return { lnum = lnum, col = found.start, raw = string.sub(line, found.start, found.stop - 1), nth = found.nth, text = found.text } end, iter)
-
-    return iter
+    return its(tries) --
+      :map(function(try) return try_find_all(line, try) end)
+      :flat()
+      :map(function(found) return { lnum = lnum, col = found.start, raw = string.sub(line, found.start, found.stop - 1), nth = found.nth, text = found.text } end)
+      :tolist()
   end
 
   ---@param lnum integer
@@ -101,7 +99,7 @@ do
     assert(line ~= nil)
 
     ---@type parrot.Pitch[]
-    local pitches = itertools.tolist(collect_pitches(lnum, line))
+    local pitches = collect_pitches(lnum, line)
     if #pitches == 0 then return line, {} end
 
     table.sort(pitches, function(a, b) return a.col < b.col end)
@@ -145,10 +143,7 @@ end
 return function(chirp)
   local lines, pitches = {}, {}
   do
-    local iter
-    iter = listlib.enumerate(chirp)
-    iter = itertools.mapn(compile_line, iter)
-
+    local iter = its(listlib.enumerate(chirp)):mapn(compile_line):unwrap()
     for line, line_pitches in iter do
       table.insert(lines, line)
       listlib.extend(pitches, line_pitches)

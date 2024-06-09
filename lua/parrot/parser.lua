@@ -4,7 +4,7 @@
 -- * `^#`             comment
 -- * `^\s*$`          blank line
 
-local itertools = require("infra.itertools")
+local its = require("infra.its")
 local jelly = require("infra.jellyfish")("parrot.parser", "info")
 
 local function startswith(str, mark) return string.sub(str, 1, #mark) == mark end
@@ -80,10 +80,7 @@ end
 return function(fpaths)
   local state = ParsingState()
 
-  local iter
-  iter = itertools.iter(fpaths)
-  iter = itertools.map(io.lines, iter)
-  iter = itertools.flat(iter)
+  local iter = its(fpaths):map(io.lines):flat()
 
   for line in iter do
     assert(state.next)
