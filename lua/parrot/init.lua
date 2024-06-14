@@ -165,14 +165,22 @@ do
     end
 
     do --goto min(nth) anchor
-      local jump_idx, jump_nth
-      for idx, pitch in ipairs(ctx.chirp.pitches) do
-        if jump_idx == nil or pitch.nth < jump_nth then
-          jump_idx, jump_nth = idx, pitch.nth
+      local jump_idx
+      do --try nth=1, or fallback to nth=0
+        local nth1, nth0_idx
+        for idx, pitch in ipairs(ctx.chirp.pitches) do
+          if pitch.nth > 0 then
+            if jump_idx == nil or pitch.nth < nth1 then
+              jump_idx, nth1 = idx, pitch.nth
+            end
+          else
+            nth0_idx = idx
+          end
         end
+        if jump_idx == nil then jump_idx = assert(nth0_idx) end
       end
-      local anchor = anchors.get(ctx.bufnr, state.xmids[jump_idx])
-      assert(anchor)
+
+      local anchor = assert(anchors.get(ctx.bufnr, state.xmids[jump_idx]))
       wincursor.go(ctx.winid, anchor.lnum, anchor.col)
 
       state.jump_idx = jump_idx
