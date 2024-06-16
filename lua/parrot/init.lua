@@ -9,6 +9,7 @@ local fs = require("infra.fs")
 local itertools = require("infra.itertools")
 local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
+local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local repeats = require("infra.repeats")
 local wincursor = require("infra.wincursor")
@@ -16,8 +17,6 @@ local wincursor = require("infra.wincursor")
 local chirps = require("parrot.chirps")
 local compiler = require("parrot.compiler")
 local facts = require("parrot.facts")
-
-local api = vim.api
 
 local anchors = {}
 do
@@ -32,14 +31,14 @@ do
   ---@param col integer @0-based
   function anchors.add(bufnr, lnum, col)
     jelly.debug("creating xmark, lnum=%d, col=%d", lnum, col)
-    local xmid = api.nvim_buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, create_opts)
+    local xmid = ni.buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, create_opts)
     return xmid
   end
 
   ---@param xmid integer
   ---@return nil|{lnum: integer, col: integer} anchor
   function anchors.get(bufnr, xmid)
-    local xm = api.nvim_buf_get_extmark_by_id(bufnr, facts.anchor_ns, xmid, { details = true })
+    local xm = ni.buf_get_extmark_by_id(bufnr, facts.anchor_ns, xmid, { details = true })
     jelly.debug("getting xmid=%s", xmid)
 
     if #xm == 0 then return end
@@ -52,7 +51,7 @@ do
   ---@param xmid integer
   function anchors.del(bufnr, xmid)
     --no matter what it returns, it might be false due to .invalidate=true option
-    api.nvim_buf_del_extmark(bufnr, facts.anchor_ns, xmid)
+    ni.buf_del_extmark(bufnr, facts.anchor_ns, xmid)
     jelly.debug("deleted xmid=%s", xmid)
   end
 end
@@ -194,7 +193,7 @@ do
   ---@param region parrot.ExpandRegion
   ---@return true?
   function expand(chirp, winid, region)
-    local bufnr = api.nvim_win_get_buf(winid)
+    local bufnr = ni.win_get_buf(winid)
     local cursor = wincursor.position(winid)
 
     local indent, inserts
@@ -210,7 +209,7 @@ do
     end
 
     --replace the key with expanded snippet
-    api.nvim_buf_set_text(bufnr, region.lnum, region.col, region.lnum, region.col_end, inserts)
+    ni.buf_set_text(bufnr, region.lnum, region.col, region.lnum, region.col_end, inserts)
 
     local state = registry[bufnr]
     if state == nil then
@@ -237,8 +236,8 @@ end
 
 ---@return true? @true when made an expansion
 function M.expand()
-  local winid = api.nvim_get_current_win()
-  local bufnr = api.nvim_win_get_buf(winid)
+  local winid = ni.get_current_win()
+  local bufnr = ni.win_get_buf(winid)
 
   local cursor = wincursor.position(winid)
   local curline = assert(buflines.line(bufnr, cursor.lnum))
@@ -268,8 +267,8 @@ end
 ---@param step -1|1 @not support v.count right now
 ---@return true? @true if next hole exists
 function M.jump(step)
-  local winid = api.nvim_get_current_win()
-  local bufnr = api.nvim_win_get_buf(winid)
+  local winid = ni.get_current_win()
+  local bufnr = ni.win_get_buf(winid)
 
   local state = registry[bufnr]
   if state == nil then return jelly.debug("no active chirp") end
@@ -303,7 +302,7 @@ end
 ---@param bufnr? integer
 ---@return boolean
 function M.running(bufnr)
-  bufnr = bufnr or api.nvim_get_current_buf()
+  bufnr = bufnr or ni.get_current_buf()
 
   local state = registry[bufnr]
   if state == nil then return false end
@@ -313,7 +312,7 @@ end
 
 ---@param bufnr? integer
 function M.cancel(bufnr)
-  bufnr = bufnr or api.nvim_get_current_buf()
+  bufnr = bufnr or ni.get_current_buf()
 
   local state = registry[bufnr]
   if state == nil then return end
@@ -332,15 +331,15 @@ do --auxiliary apis
   ---@param ft? string
   ---@param open_mode? infra.bufopen.Mode
   function M.edit_chirp(ft, open_mode)
-    if ft == nil then ft = prefer.bo(api.nvim_get_current_buf(), "filetype") end
+    if ft == nil then ft = prefer.bo(ni.get_current_buf(), "filetype") end
     if ft == "" then return jelly.warn("no available filetype") end
     open_mode = open_mode or "right"
 
     bufopen(open_mode, fs.joinpath(facts.user_root, string.format("%s.snippets", ft)))
 
-    local chirp_bufnr = api.nvim_get_current_buf()
+    local chirp_bufnr = ni.get_current_buf()
     prefer.bo(chirp_bufnr, "bufhidden", "wipe")
-    api.nvim_create_autocmd("bufwipeout", { buffer = chirp_bufnr, once = true, callback = function() chirps.reset_ft_chirps(ft) end })
+    ni.create_autocmd("bufwipeout", { buffer = chirp_bufnr, once = true, callback = function() chirps.reset_ft_chirps(ft) end })
   end
 
   M.comp = {}
