@@ -42,7 +42,7 @@ do
     jelly.debug("getting xmid=%s", xmid)
 
     if #xm == 0 then return end
-    if xm[3].invalid == true then return end
+    if xm[3].invalid then return end
 
     return { lnum = xm[1], col = xm[2] }
   end
