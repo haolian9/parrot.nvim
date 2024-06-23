@@ -15,11 +15,10 @@ local chirps = {}
 ---@param ft string
 ---@return fun(): string? @absolute paths
 local function iter_chirp_files(ft)
-  local exact = string.format("%s.snippets", ft)
-  local prefix = string.format("%s-", ft)
+  local matches = strlib.Glob(ft .. ".snippets", ft .. "-*.snippets")
 
   return its(fs.iterfiles(facts.user_root)) --
-    :filter(function(fname) return fname == exact or strlib.startswith(fname, prefix) end)
+    :filter(function(fname) return matches(fname) end)
     :map(function(fname) return fs.joinpath(facts.user_root, fname) end)
     :unwrap()
 end

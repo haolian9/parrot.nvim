@@ -90,6 +90,8 @@ do
       :tolist()
   end
 
+  local rope = ropes.new()
+
   ---@param lnum integer
   ---@param line string
   ---@return string compiled_line
@@ -106,7 +108,6 @@ do
 
     local newline
     do
-      local rope = ropes.new()
       local offset = 1
       for _, p in ipairs(pitches) do
         if offset < p.col then
