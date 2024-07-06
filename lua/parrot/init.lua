@@ -76,7 +76,7 @@ do
     self.jump_idx = jump_idx
   end
 
-  function Impl:deactived()
+  function Impl:deactivated()
     self.active = false
     self.xmids = {}
     self.jump_idx = -1
@@ -125,7 +125,7 @@ do
       wincursor.go(ctx.winid, lnum, col)
     end
 
-    state:deactived()
+    state:deactivated()
   end
 
   ---@param ctx parrot.ExpandContex
@@ -320,7 +320,7 @@ function M.cancel(bufnr)
 
   local xmids = state.xmids
 
-  state:deactived()
+  state:deactivated()
 
   for _, xmid in ipairs(xmids) do
     anchors.del(state.bufnr, xmid)
