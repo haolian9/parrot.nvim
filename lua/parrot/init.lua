@@ -1,5 +1,10 @@
---todo: visual select placeholder
---todo: property timing to terminate the expansion
+---design choices
+---* no visual selecting placeholder
+---  * https://github.com/neovim/neovim/issues/23549
+---  * beware of empty placeholder
+---* no auto-terminating
+---  * i can not find a reliable way to do it, leave it to the user
+---  * and in my uses, i dont even bother that
 
 local M = {}
 
@@ -20,18 +25,17 @@ local facts = require("parrot.facts")
 
 local anchors = {}
 do
-  local create_opts = { virt_text = { { "" } }, virt_text_pos = "inline", invalidate = true, undo_restore = true, right_gravity = false }
-
-  ---presets:
-  ---* it's an empty extmark, so called anchor
-  ---* it'll be invalid automatically
-  ---
+  ---place an 0-range, auto-deleted extmark
   ---@param bufnr integer
   ---@param lnum integer @0-based
   ---@param col integer @0-based
   function anchors.add(bufnr, lnum, col)
     jelly.debug("creating xmark, lnum=%d, col=%d", lnum, col)
-    local xmid = ni.buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, create_opts)
+    local xmid = ni.buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, {
+      right_gravity = false,
+      invalidate = true,
+      undo_restore = true,
+    })
     return xmid
   end
 
