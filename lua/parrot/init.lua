@@ -19,6 +19,7 @@ local jumplist = require("infra.jumplist")
 local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local repeats = require("infra.repeats")
+local strlib = require("infra.strlib")
 local vsel = require("infra.vsel")
 local wincursor = require("infra.wincursor")
 
@@ -32,18 +33,25 @@ do
   ---@param bufnr integer
   ---@param lnum integer @0-based
   ---@param col integer @0-based
-  function anchors.add(bufnr, lnum, col)
-    jelly.debug("creating xmark, lnum=%d, col=%d", lnum, col)
+  ---@param len integer @>=0
+  function anchors.add(bufnr, lnum, col, len)
+    jelly.debug("creating xmark, lnum=%d, col=%d, len=%s", lnum, col, len)
+    --stylua: ignore
     local xmid = ni.buf_set_extmark(bufnr, facts.anchor_ns, lnum, col, {
-      right_gravity = false,
-      invalidate = true,
-      undo_restore = true,
+      end_row = lnum, end_col = col + len,
+      right_gravity = false, end_right_gravity = true,
     })
     return xmid
   end
 
+  ---@class parrot.Anchor
+  ---@field start_lnum integer @0-based, inclusive
+  ---@field start_col  integer @0-based, inclusive
+  ---@field stop_lnum  integer @0-based, exclusive
+  ---@field stop_col   integer @0-based, exclusive
+
   ---@param xmid integer
-  ---@return nil|{lnum: integer, col: integer} anchor
+  ---@return parrot.Anchor?
   function anchors.get(bufnr, xmid)
     local xm = ni.buf_get_extmark_by_id(bufnr, facts.anchor_ns, xmid, { details = true })
     jelly.debug("getting xmid=%s", xmid)
@@ -51,7 +59,7 @@ do
     if #xm == 0 then return end
     if xm[3].invalid then return end
 
-    return { lnum = xm[1], col = xm[2] }
+    return { start_lnum = xm[1], start_col = xm[2], stop_lnum = xm[3].end_row + 1, stop_col = xm[3].end_col }
   end
 
   ---@param bufnr integer
@@ -60,6 +68,17 @@ do
     --no matter what it returns, it might be false due to .invalidate=true option
     ni.buf_del_extmark(bufnr, facts.anchor_ns, xmid)
     jelly.debug("deleted xmid=%s", xmid)
+  end
+
+  ---@param winid integer
+  ---@param anchor parrot.Anchor
+  function anchors.vsel_or_goto(winid, anchor)
+    if anchor.stop_lnum - anchor.start_lnum <= 1 and anchor.stop_col - anchor.start_col <= 1 then
+      if strlib.startswith(ni.get_mode().mode, "v") then feedkeys.keys("<esc>", "n") end
+      wincursor.go(winid, anchor.start_lnum, anchor.start_col)
+    else
+      vsel.select_region(winid, anchor.start_lnum, anchor.start_col, anchor.stop_lnum, anchor.stop_col)
+    end
   end
 end
 
@@ -150,7 +169,7 @@ do
 
         local lnum = pitch.lnum + lnumoff
         local col = pitch.col + coloff - 1
-        local xmid = anchors.add(ctx.bufnr, lnum, col)
+        local xmid = anchors.add(ctx.bufnr, lnum, col, #pitch.text)
         table.insert(xmids, xmid)
       end
 
@@ -161,7 +180,7 @@ do
         for pitch in iter do
           local lnum = pitch.lnum + lnumoff
           local col = pitch.col + coloff - 1
-          local xmid = anchors.add(ctx.bufnr, lnum, col)
+          local xmid = anchors.add(ctx.bufnr, lnum, col, #pitch.text)
           table.insert(xmids, xmid)
         end
       end
@@ -187,7 +206,7 @@ do
       end
 
       local anchor = assert(anchors.get(ctx.bufnr, state.xmids[jump_idx]))
-      wincursor.go(ctx.winid, anchor.lnum, anchor.col)
+      anchors.vsel_or_goto(0, anchor)
 
       state.jump_idx = jump_idx
     end
@@ -355,7 +374,7 @@ function M.jump(step)
 
   jumplist.push_here()
 
-  wincursor.go(winid, anchor.lnum, anchor.col)
+  anchors.vsel_or_goto(winid, anchor)
   state.jump_idx = jump_idx
 
   return true
