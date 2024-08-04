@@ -162,27 +162,19 @@ do
       local xmids = {}
 
       local iter = itertools.iter(ctx.chirp.pitches)
-      do --the first one
-        local coloff = ctx.region.col
-        local lnumoff = ctx.cursor.lnum
-        local pitch = iter()
-
+      local lnumoff = ctx.cursor.lnum
+      for pitch in iter do
+        local coloff
+        if pitch.lnum == 0 then
+          --pitches at the first line
+          coloff = ctx.region.col - 1
+        else
+          coloff = #ctx.indent - 1
+        end
         local lnum = pitch.lnum + lnumoff
-        local col = pitch.col + coloff - 1
+        local col = pitch.col + coloff
         local xmid = anchors.add(ctx.bufnr, lnum, col, #pitch.text)
         table.insert(xmids, xmid)
-      end
-
-      do
-        local coloff = #ctx.indent
-        local lnumoff = ctx.cursor.lnum
-
-        for pitch in iter do
-          local lnum = pitch.lnum + lnumoff
-          local col = pitch.col + coloff - 1
-          local xmid = anchors.add(ctx.bufnr, lnum, col, #pitch.text)
-          table.insert(xmids, xmid)
-        end
       end
 
       assert(#xmids == #ctx.chirp.pitches)
