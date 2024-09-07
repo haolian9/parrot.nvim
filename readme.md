@@ -25,14 +25,8 @@ here's my personal config
 ```
 do --parrot
   m.x("<tab>", ":lua require'parrot'.visual_expand()<cr>")
-  m.i("<tab>", function() ---always do expand, not jump
-    local parrot = require("parrot")
+  m.i("<tab>", function() require("parrot").rhs_itab() end)
 
-    if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
-    if parrot.expand() then return feedkeys("<esc>l", "n") end
-    assert(strlib.startswith(ni.get_mode().mode, "i"))
-    feedkeys("<tab>", "n")
-  end)
   m.i("<c-0>", function() require("parrot").jump(1) end)
   m.i("<c-9>", function() require("parrot").jump(-1) end)
   m.n("<c-0>", function() require("parrot").jump(1) end)
