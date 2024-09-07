@@ -63,12 +63,13 @@ function M.get_visual(ft, key) --
   return get_ft_chirps(ft).visual[key] or get_ft_chirps("all").visual[key]
 end
 
+---including ft='all'
 ---@param ft string
 ---@return string[]
 function M.get_visual_keys(ft)
-  local all = dictlib.keys(get_ft_chirps("all").visual)
-  if ft == "all" then return all end
-  return dictlib.merged(dictlib.keys(get_ft_chirps(ft).visual), all)
+  local for_all = dictlib.keys(get_ft_chirps("all").visual)
+  if ft == "all" then return for_all end
+  return dictlib.merged(dictlib.keys(get_ft_chirps(ft).visual), for_all)
 end
 
 ---@param ft string

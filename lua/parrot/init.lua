@@ -311,7 +311,7 @@ end
 ---@param raw_chirp string[]
 ---@param winid integer
 ---@param region {lnum: integer, col: integer, col_end: integer} @col_end: exclusive?
-function M.expand_external_chirp(raw_chirp, winid, region)
+function M.external_expand(raw_chirp, winid, region)
   jelly.info("expanding: %s", raw_chirp)
   return expand(compiler(raw_chirp), winid, region)
 end
@@ -351,15 +351,12 @@ function M.jump(step)
   return true
 end
 
----@param bufnr? integer
----@return boolean
-function M.running(bufnr)
-  bufnr = bufnr or ni.get_current_buf()
-
-  local state = registry[bufnr]
-  if state == nil then return false end
-
-  return state.active
+---always do expand not jump
+function M.rhs_itab()
+  if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
+  if M.expand() then return feedkeys("<esc>l", "n") end
+  assert(strlib.startswith(ni.get_mode().mode, "i"))
+  feedkeys("<tab>", "n")
 end
 
 ---@param bufnr? integer
