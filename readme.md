@@ -8,25 +8,23 @@ a poor man's snippet expanding tool
 * no placeholder evaluation
     * no sh, python interpolation
 * limited support expanding external snippets, eg: lsp snippet completion, docgen
+* expanding with visual selection
 
 ## prerequisites
 * nvim 0.10.*
 * haolian9/infra.nvim
+* haolian9/beckon.nvim
 
 ## status
 * just works
 * merely a toy, not supposed to be used publicly
-
-## todo
-* select placeholder
-* property timing to terminate the expansion
 
 ## usage
 
 here's my personal config
 ```
 do --parrot
-  m.x("<tab>", ":lua require'parrot'.prepare_visual_expand()<cr>")
+  m.x("<tab>", ":lua require'parrot'.visual_expand()<cr>")
   m.i("<tab>", function() ---always do expand, not jump
     local parrot = require("parrot")
 
