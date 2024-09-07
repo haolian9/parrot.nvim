@@ -1,5 +1,6 @@
 local M = {}
 
+local dictlib = require("infra.dictlib")
 local fs = require("infra.fs")
 local its = require("infra.its")
 local strlib = require("infra.strlib")
@@ -60,6 +61,14 @@ end
 ---@return string[]?
 function M.get_visual(ft, key) --
   return get_ft_chirps(ft).visual[key] or get_ft_chirps("all").visual[key]
+end
+
+---@param ft string
+---@return string[]
+function M.get_visual_keys(ft)
+  local all = dictlib.keys(get_ft_chirps("all").visual)
+  if ft == "all" then return all end
+  return dictlib.merged(dictlib.keys(get_ft_chirps(ft).visual), all)
 end
 
 ---@param ft string

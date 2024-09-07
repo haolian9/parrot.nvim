@@ -23,6 +23,7 @@ local strlib = require("infra.strlib")
 local vsel = require("infra.vsel")
 local wincursor = require("infra.wincursor")
 
+local beckon_select = require("beckon.select")
 local chirps = require("parrot.chirps")
 local compiler = require("parrot.compiler")
 local facts = require("parrot.facts")
@@ -252,81 +253,59 @@ do
   end
 end
 
-do
-  ---@type {[integer]: infra.vsel.Range}
-  local bufxrange = {}
+function M.visual_expand()
+  local winid = ni.get_current_win()
+  local bufnr = ni.win_get_buf(winid)
 
-  function M.prepare_visual_expand()
-    local winid = ni.get_current_win()
-    local bufnr = ni.win_get_buf(winid)
+  local xrange = vsel.range(bufnr, true)
+  if xrange == nil then return end
+  if xrange.stop_line - xrange.start_line > 1 then return jelly.warn("not support multi-line visual") end
 
-    local xrange = vsel.range(bufnr, true)
-    if xrange == nil then return end
-    if xrange.stop_line - xrange.start_line > 1 then return jelly.warn("not support multi-line visual") end
-    bufxrange[bufnr] = xrange
-    do --cursor at the end of range, enter insert mode
-      wincursor.go(winid, xrange.stop_line - 1, xrange.stop_col - 1)
-      feedkeys("a", "n")
-    end
+  local ft = prefer.bo(bufnr, "filetype")
+
+  local keys ---@type string[]
+  do
+    if ft == nil or ft == "" then ft = "all" end
+    keys = chirps.get_visual_keys(ft)
+    if #keys == 0 then return jelly.warn("no available visual snippets") end
   end
 
-  ---@param winid integer
-  ---@param bufnr integer
-  ---@param cursor infra.wincursor.Position
-  ---@param curline string
-  ---@return true?
-  local function try_visual(winid, bufnr, cursor, curline)
-    local xrange = bufxrange[bufnr]
-    if xrange == nil then return end
-    if xrange.start_line ~= cursor.lnum then return end
+  beckon_select(keys, { prompt = "🦜" }, function(key)
+    if key == nil or key == "" then return end
+    assert(ni.get_current_win() == winid)
 
-    local leading = string.sub(curline, xrange.stop_col + 1, cursor.col)
-    local key = string.match(leading, "[^ ]+$")
-    if key == nil then return end
-
-    local xhirp = chirps.get_visual(prefer.bo(bufnr, "filetype"), key)
+    local xhirp = chirps.get_visual(ft, key)
     if xhirp == nil then return end
 
     local chirp
     do
-      local xtext = string.sub(curline, xrange.start_col + 1, xrange.stop_col + 1 - 1)
+      local xtext = assert(buflines.partial_line(bufnr, xrange.start_line, xrange.start_col, xrange.stop_col))
       local lines = its(xhirp) --
         :map(function(line) return string.gsub(line, "{visual}", xtext) end)
         :tolist()
       chirp = compiler(lines)
     end
 
-    return expand(chirp, winid, { lnum = xrange.start_line, col = xrange.start_col, col_end = cursor.col })
-  end
+    return expand(chirp, winid, { lnum = xrange.start_line, col = xrange.start_col, col_end = xrange.stop_col })
+  end)
+end
 
-  ---@param winid integer
-  ---@param bufnr integer
-  ---@param cursor infra.wincursor.Position
-  ---@param curline string
-  ---@return true?
-  local function try_normal(winid, bufnr, cursor, curline)
-    local leading = string.sub(curline, 1, cursor.col)
-    local key = string.match(leading, "[^ ]+$")
-    if key == nil then return jelly.debug("no key found") end
+---@return true? @true when made an expansion
+function M.expand()
+  local winid = ni.get_current_win()
+  local bufnr = ni.win_get_buf(winid)
+  local cursor = wincursor.position(winid)
+  local curline = assert(buflines.line(bufnr, cursor.lnum))
 
-    ---@type parrot.compiler.Compiled?
-    local chirp = chirps.get_normal(prefer.bo(bufnr, "filetype"), key)
-    if chirp == nil then return jelly.debug("no available snippet for %s", key) end
+  local leading = string.sub(curline, 1, cursor.col)
+  local key = string.match(leading, "[^ ]+$")
+  if key == nil then return jelly.debug("no key found") end
 
-    local success = expand(chirp, winid, { lnum = cursor.lnum, col = cursor.col - #key, col_end = cursor.col })
-    if success then bufxrange[bufnr] = nil end
-    return success
-  end
+  ---@type parrot.compiler.Compiled?
+  local chirp = chirps.get_normal(prefer.bo(bufnr, "filetype"), key)
+  if chirp == nil then return jelly.debug("no available snippet for %s", key) end
 
-  ---@return true? @true when made an expansion
-  function M.expand()
-    local winid = ni.get_current_win()
-    local bufnr = ni.win_get_buf(winid)
-    local cursor = wincursor.position(winid)
-    local curline = assert(buflines.line(bufnr, cursor.lnum))
-
-    return try_visual(winid, bufnr, cursor, curline) or try_normal(winid, bufnr, cursor, curline)
-  end
+  return expand(chirp, winid, { lnum = cursor.lnum, col = cursor.col - #key, col_end = cursor.col })
 end
 
 ---@param raw_chirp string[]
