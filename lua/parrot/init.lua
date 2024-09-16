@@ -352,7 +352,7 @@ function M.jump(step)
 end
 
 ---always do expand not jump
-function M.rhs_itab()
+function M.itab()
   if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
   if M.expand() then return feedkeys("<esc>l", "n") end
   assert(strlib.startswith(ni.get_mode().mode, "i"))
