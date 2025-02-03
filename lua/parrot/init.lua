@@ -14,8 +14,9 @@ local feedkeys = require("infra.feedkeys")
 local fs = require("infra.fs")
 local itertools = require("infra.itertools")
 local its = require("infra.its")
-local jelly = require("infra.jellyfish")("parrot", "info")
+local jelly = require("infra.jellyfish")("parrot", "debug")
 local jumplist = require("infra.jumplist")
+local mi = require("infra.mi")
 local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local repeats = require("infra.repeats")
@@ -257,9 +258,19 @@ function M.visual_expand()
   local winid = ni.get_current_win()
   local bufnr = ni.win_get_buf(winid)
 
-  local xrange = vsel.range(bufnr, true)
-  if xrange == nil then return end
-  if xrange.stop_line - xrange.start_line > 1 then return jelly.warn("not support multi-line visual") end
+  local xrange
+  if ni.get_mode().mode == "i" then
+    local cursor = wincursor.position(winid)
+    local regex = vim.regex([[\v[^ ]+$]]) --unicode chars
+    local mat_start, mat_stop = regex:match_line(bufnr, cursor.lnum, 0, cursor.col)
+    if not (mat_start and mat_stop) then return jelly.warn("no leading text found") end
+    xrange = { start_col = mat_start, start_line = cursor.lnum, stop_col = mat_stop, stop_line = cursor.lnum }
+    mi.stopinsert() --enter normal mode, necessary for beckon
+  else
+    xrange = vsel.range(bufnr, true)
+    if xrange == nil then return jelly.warn("no visual selected text") end
+    if xrange.stop_line - xrange.start_line > 1 then return jelly.warn("not support multi-line visual") end
+  end
 
   local ft = prefer.bo(bufnr, "filetype")
 
@@ -354,7 +365,7 @@ end
 ---always do expand not jump
 function M.itab()
   if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
-  if M.expand() then return feedkeys("<esc>l", "n") end
+  if M.expand() then return mi.stopinsert() end
   assert(strlib.startswith(ni.get_mode().mode, "i"))
   feedkeys("<tab>", "n")
 end
