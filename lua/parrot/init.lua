@@ -10,6 +10,7 @@ local M = {}
 
 local buflines = require("infra.buflines")
 local bufopen = require("infra.bufopen")
+local ex = require("infra.ex")
 local feedkeys = require("infra.feedkeys")
 local fs = require("infra.fs")
 local itertools = require("infra.itertools")
@@ -265,7 +266,9 @@ function M.visual_expand()
     local mat_start, mat_stop = regex:match_line(bufnr, cursor.lnum, 0, cursor.col)
     if not (mat_start and mat_stop) then return jelly.warn("no leading text found") end
     xrange = { start_col = mat_start, start_line = cursor.lnum, stop_col = mat_stop, stop_line = cursor.lnum }
-    mi.stopinsert() --enter normal mode, necessary for beckon
+    --enter normal mode, necessary for beckon
+    --and for unknown reason, mi.stopinsert() does not works well here
+    ex("stopinsert")
   else
     xrange = vsel.range(bufnr, true)
     if xrange == nil then return jelly.warn("no visual selected text") end
@@ -365,7 +368,7 @@ end
 ---always do expand not jump
 function M.itab()
   if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
-  if M.expand() then return mi.stopinsert() end
+  if M.expand() then return end
   assert(strlib.startswith(ni.get_mode().mode, "i"))
   feedkeys("<tab>", "n")
 end
