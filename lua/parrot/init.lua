@@ -15,9 +15,8 @@ local feedkeys = require("infra.feedkeys")
 local fs = require("infra.fs")
 local itertools = require("infra.itertools")
 local its = require("infra.its")
-local jelly = require("infra.jellyfish")("parrot", "debug")
+local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
-local mi = require("infra.mi")
 local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local repeats = require("infra.repeats")
@@ -368,7 +367,12 @@ end
 ---always do expand not jump
 function M.itab()
   if vim.fn.pumvisible() == 1 then return feedkeys("<c-y>", "n") end
-  if M.expand() then return end
+  if M.expand() then
+    --that's a dirty hack
+    --to prevent vim entering a weird visual mode
+    --which only occurs in imap
+    return feedkeys("<esc>l", "n")
+  end
   assert(strlib.startswith(ni.get_mode().mode, "i"))
   feedkeys("<tab>", "n")
 end
