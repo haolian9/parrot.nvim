@@ -17,6 +17,7 @@ local itertools = require("infra.itertools")
 local its = require("infra.its")
 local jelly = require("infra.jellyfish")("parrot", "info")
 local jumplist = require("infra.jumplist")
+local mi = require("infra.mi")
 local ni = require("infra.ni")
 local prefer = require("infra.prefer")
 local repeats = require("infra.repeats")
@@ -379,7 +380,7 @@ end
 
 ---@param bufnr? integer
 function M.cancel(bufnr)
-  bufnr = bufnr or ni.get_current_buf()
+  bufnr = mi.resolve_bufnr_param(bufnr)
 
   local state = registry[bufnr]
   if state == nil then return end
