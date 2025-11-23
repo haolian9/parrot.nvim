@@ -11,13 +11,13 @@ a poor man's snippet expanding tool
 * expanding with visual selection
 
 ## prerequisites
-* nvim 0.10.*
+* nvim 0.11.*
 * haolian9/infra.nvim
 * haolian9/beckon.nvim
 
 ## status
 * just works
-* merely a toy, not supposed to be used publicly
+* merely a toy
 
 ## usage
 
@@ -45,3 +45,6 @@ do --parrot
   end
 end
 ```
+
+## credits
+* ultisnips. my good old friend, until it's 'best effort' on nvim.
