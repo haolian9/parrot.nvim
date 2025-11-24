@@ -333,6 +333,12 @@ end
 ---@param step -1|1 @not support v.count right now
 ---@return true? @true if next hole exists
 function M.jump(step)
+  do --necessary for awkard mode changing
+    local mode = ni.get_mode()
+    assert(mode.blocking == false)
+    assert(mode.mode == "n")
+  end
+
   local winid = ni.get_current_win()
   local bufnr = ni.win_get_buf(winid)
 
